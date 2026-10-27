@@ -1,8 +1,22 @@
 # netmedic configuration (non-secret). Secrets live in secrets.yaml (sops-encrypted).
 model:
   api_base: https://api.meta.ai/v1
-  name: muse-spark-1.3
-  reasoning_effort: null # minimal | low | medium | high | xhigh
+  max_retries: 5         # SDK retries with backoff on 429/5xx/timeouts
+  timeout: 120           # seconds per model call
+  # Escalation ladder: attempt 1 on an incident uses the first tier, each failed attempt moves up.
+  # "-contributor" = same Muse Spark checkpoint, 12-20x cheaper, prompts may be used to train Meta
+  # models: fine for this lab. For a real network use muse-spark-1.3 or self-hosted open weights.
+  tiers:
+    - {name: muse-spark-1.3-contributor, reasoning_effort: low}    # fast and cheap: most incidents
+    - {name: muse-spark-1.3-contributor, reasoning_effort: high}   # deeper reasoning on a retry
+    - {name: muse-wonder-1.0}                                      # long-horizon expert, last resort
+  prices:                # USD per 1M tokens: [input, cached input, output]
+    muse-spark-1.3: [1.25, 0.15, 4.25]
+    muse-spark-1.3-contributor: [0.10, 0.002, 0.20]
+    muse-spark-1.2-contributor: [0.10, 0.002, 0.20]
+    muse-wonder-1.0: [4.00, 0.20, 20.00]
+
+incident_timeout: 420    # max seconds for one investigation, then escalate
 
 inventory: inventory.yaml
 runbooks: runbooks
@@ -12,7 +26,7 @@ watch:
   interval: 5          # seconds between probes
   confirm_polls: 2     # a symptom must persist this many probes before opening an incident
   mode: auto           # auto | approval
-  max_attempts: 2      # per symptom set, then escalate to a human
+  max_attempts: 3      # per symptom set (one per model tier), then escalate to a human
   settle: 20           # seconds to let routing reconverge after an incident
   dns_names: [app.lab]
 

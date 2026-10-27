@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -34,16 +35,21 @@ class IncidentResult:
 
     @property
     def status(self) -> str:
+        escalated = bool(self.diagnosis.escalation.strip())
         if not self.diagnosis.plan:
-            return "NO ACTION NEEDED"
+            return "ESCALATED" if escalated else "NO ACTION NEEDED"
         ok = [s.outcome is not None and s.outcome.success for s in self.steps]
         if all(ok):
-            return "RESOLVED"
+            return "RESOLVED + ESCALATED" if escalated else "RESOLVED"
         return "PARTIALLY RESOLVED" if any(ok) else "NOT RESOLVED"
 
     @property
+    def escalated(self) -> bool:
+        return bool(self.diagnosis.escalation.strip())
+
+    @property
     def resolved(self) -> bool:
-        return self.status in ("RESOLVED", "NO ACTION NEEDED")
+        return self.status in ("RESOLVED", "RESOLVED + ESCALATED", "NO ACTION NEEDED", "ESCALATED")
 
 
 async def handle_incident(
@@ -54,13 +60,20 @@ async def handle_incident(
     mode: str,
     approve: Approver,
     on_event: EventSink = noop_sink,
+    tier: int = 0,
 ) -> IncidentResult:
     """Apply every step of the plan in order, each verified (and rolled back) on its own.
     mode 'auto' applies low-risk steps on its own and asks `approve` for the rest;
     mode 'approval' always asks."""
     started = datetime.now()
-    agent = Agent(settings, inventory, Toolbox(pool), load_runbooks(settings.runbooks_dir), on_event=on_event)
-    result = IncidentResult(await agent.investigate(incident))
+    agent = Agent(settings, inventory, Toolbox(pool), load_runbooks(settings.runbooks_dir), on_event=on_event, tier=tier)
+    try:
+        diagnosis = await asyncio.wait_for(agent.investigate(incident), settings.incident_timeout)
+    except Exception as e:
+        reason = "timed out" if isinstance(e, asyncio.TimeoutError) else f"failed: {type(e).__name__}: {e}"
+        await on_event(Event("escalate", {"text": f"investigation {reason} — escalating to a human"}))
+        raise
+    result = IncidentResult(diagnosis)
     executor = Executor(pool, on_event=on_event)
 
     total = len(result.diagnosis.plan)
@@ -77,8 +90,11 @@ async def handle_incident(
         result.steps.append(Step(rem, await executor.execute(rem)))
 
     result.report = save_report(render_report(incident, result, mode, started), started)
+    if result.escalated:
+        await on_event(Event("escalate", {"text": f"escalated to a human: {result.diagnosis.escalation}"}))
     await on_event(Event("incident_closed", {
         "text": f"incident {result.status} — report {result.report}",
-        "status": result.status, "resolved": result.resolved, "report": str(result.report),
+        "status": result.status, "resolved": result.resolved, "escalated": result.escalated,
+        "report": str(result.report),
     }))
     return result

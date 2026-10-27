@@ -24,7 +24,7 @@
 | Data models | `pydantic` |
 | Runbooks | **YAML** (diagnostic & remediation paths) |
 | Web UI | **FastAPI + SSE + htmx** (live view of agent reasoning & tool calls) |
-| Notifications | **Web, Telegram, Discord** first (with Approve button), then Slack (webhook) & Mail (`aiosmtplib`) if time allows |
+| Notifications | **Web UI** (desktop + phone); Telegram optional. Discord / Slack / Mail cut |
 | Incident report (RCA) | Jinja2 → Markdown / HTML |
 
 ## Demo Lab
@@ -75,71 +75,100 @@ Alert → Diagnosis (tools + runbooks) → Ranked hypotheses (with evidence)
        Model: Muse Spark (API) ⇄ Muse Spark Open / Glimmer (DGX Spark / Baseten)
 ```
 
-## Phase 2 Extras (Mon Nov 2, after MVP)
+## Demo Goals (revised Tue Oct 27 evening)
 
-- **Rack Vision (headline feature, see below)**
-- Open weights backend: Muse Spark Open / Glimmer on DGX Spark or Baseten → "configs never leave your infra" + $10K bonus
-- Voice (Muse Voice Transcribe): on-call engineer talks to the agent
-- Vision (Muse Spark): agent reads topology diagrams / dashboard screenshots
-- Slack + Mail notifiers, extra failure scenarios
+1. **Ultra robust**: the live demo must not fail. Measured, not hoped: an eval harness replays every
+   failure scenario many times and reports success rate, MTTR and cost.
+2. **Rack Vision with AR**: point an iPhone at a rack, see faults highlighted on the live video,
+   cross-checked with live device data.
 
-### Rack Vision — point your phone at the rack
+Cut to make room: Discord, Slack, Mail notifiers, Kubernetes. The web UI (works on the phone)
+covers approvals; Telegram only if time is left.
 
-The on-site technician opens the netmedic web page on their phone, points the camera at a rack /
-switch / patch panel, and the agent finds physical problems by **cross-checking what it sees with
-live data from the devices**.
+## Robustness
+
+- **Eval harness** `netmedic eval`: every chaos scenario × N runs → success rate, time to detect,
+  time to resolve, tool calls, tokens/cost, failure reasons. Results table in the README.
+- **API resilience**: retries with backoff on 429/5xx/timeouts, per-call and per-incident timeouts,
+  graceful "escalate to human" instead of crashing.
+- **Providers (plugins)**: tools + actions + checks + probes grouped per domain:
+  `network` (BIRD, interfaces, routes, nftables, DNS) and `linux` (systemd services, disk, CPU/memory,
+  journald). Same agent / plan / verify / rollback core for all domains.
+- **More scenarios** (beyond BGP): service crash loop, disk full breaking a daemon, MTU mismatch,
+  blackhole static route, firewall drop, multi-fault meltdowns.
+- **Auth**: the server is reachable from the LAN for the phone → access token required for the UI
+  and every write API (approve, mode, alerts).
+- **Demo safety net**: rehearsed script, `chaos.sh` scenarios known to pass in eval, recorded backup
+  takes of each segment.
+
+## Rack Vision — point your iPhone at the rack
+
+The technician opens the netmedic page on their iPhone (Safari, local network, HTTPS), points the
+camera at a rack / switch / patch panel, and sees problems **drawn on the live video**, found by
+cross-checking what the camera sees with live data from the devices.
 
 ```
-Phone camera (web page, <input capture>, no app)
-  → Muse Spark vision: identify devices, port numbers, cables, link LEDs, labels
-  → SAM 3.1: segment each port / cable / LED for precise localisation + annotated overlay
-  → agent tools fetch ground truth:
-       interface state & counters, switch running-config, LLDP neighbors,
-       expected cabling map (cabling.yaml: "sw1 port 12 ↔ r3 to-r4")
-  → cross-check → findings, drawn on the photo:
-       "fibre plugged in port 14, config + cabling map expect it in port 12"
-       "port 7 LED off but interface admin-up in config → cable/SFP issue"
-       "unlabelled cable in port 3: LLDP says it goes to r2"
-  → feeds the normal incident pipeline (diagnosis → remediation → report)
+iPhone Safari (getUserMedia, rear camera, HTTPS on the LAN)
+  → every ~1-2 s (or on tap) a frame is sent to netmedic
+  → Muse Spark vision: identify device, port numbering, cables, link LEDs, labels
+  → SAM 3.1: precise boxes / masks for ports, cables, LEDs
+  → agent tools fetch ground truth: interface states & counters, switch config,
+       LLDP neighbours, expected cabling map (cabling.yaml: "sw1 port 12 ↔ r3 uplink")
+  → findings drawn as AR overlay on the live video (canvas over <video>):
+       "port 12: no cable, cabling map expects r3-uplink here"
+       "port 7 LED off but interface admin-up → cable/SFP issue"
+       "cable in port 14 belongs in port 12 (label r3-uplink)"
+  → findings feed the normal incident pipeline (diagnosis → remediation → report)
 ```
 
-- **Why it matters:** many outages are physical (wrong port, unseated SFP, bent fibre); remote
-  agents are blind to them. This closes the loop between the NOC and the person in the datacenter.
-- **Meta tooling:** Muse Spark multimodal + SAM 3.1 + (optional) Muse Voice Transcribe for
-  hands-free questions — goes well beyond a basic text integration (25% of the score).
-- **New tools:** `analyze_rack_photo(image)`, `segment_ports(image)`, `switch_config(device)`,
-  `lldp_neighbors(device)`, `cabling_map(device)`.
-- **Demo:** real photo of a physical switch / patch panel + `cabling.yaml` mapping physical ports to
-  lab links → pull a cable (or use `chaos.sh link-down`) → photo → agent points at the exact port.
-- **Open question:** physical hardware available for the demo (switch, patch panel, homelab rack)?
+- **iPhone → no WebXR**: "AR" = live camera with overlays re-anchored at each analysis (1-2 s).
+  Overlays may lag when the phone moves fast between analyses; tap-to-freeze for a crisp view.
+- **HTTPS on the LAN**: Safari only opens the camera in a secure context → local CA generated by
+  netmedic, root certificate installed and trusted on the iPhone once (documented).
+- **Hardware**: the user has physical equipment (model TBD, not reachable from the dev machine yet).
+  Develop against photos + a device adapter interface; plug the real switch in when available
+  (SSH/SNMP adapter for its model).
+- **Meta tooling**: Muse Spark multimodal + SAM 3.1 (+ optional Muse Voice Transcribe:
+  "what's wrong with this rack?") — well beyond a basic text integration (25% of the score).
+- **Demo**: unplug a real cable → watcher detects the port down → point the iPhone at the rack →
+  the empty port is circled on the video with "plug r3-uplink back into port 12" → fixed → green.
+
+## Optional (only if everything above is solid)
+
+- Open weights backend (Muse Spark Open / Glimmer on DGX Spark or Baseten) → $10K bonus
+- Telegram alerts + approvals
+- Kubernetes provider
 
 ## Schedule
 
-### Week 1 — MVP
+### Week 1
 
 | Day | Goal |
 |---|---|
-| **Tue Oct 27** | Repo, lab, Muse Spark client with tool calling, SSH tools → agent diagnoses a failure on its own. *Agents 101 session, 12 PM ET* |
-| **Wed Oct 28** | Runbooks, 3 scenarios, remediation + safe apply + policy (auto / approval). *Agents 102 session, 12 PM ET* |
-| **Thu Oct 29** | Live web UI, Telegram, Discord, incident report → full end-to-end demo |
-| **Fri Oct 30** (daytime) | Stabilize, minimal README, push everything. **Checkpoint: a demoable MVP exists before the weekend.** *Fireworks session, 12 PM ET* |
+| **Tue Oct 27** | ✅ Lab, agent, safe remediation, automatic detection, multi-root-cause plans, web UI (far ahead of the original plan) |
+| **Wed Oct 28** | **Robustness**: API retries/timeouts, eval harness, fix every failure it finds; providers refactor + `linux` provider and new scenarios; token auth. *Agents 102, 12 PM ET (17:00 Paris)* |
+| **Thu Oct 29** | **Rack Vision core**: HTTPS on the LAN + local CA, iPhone camera page, frame → Muse Spark vision + SAM 3.1 → overlay; cabling map; device adapter interface |
+| **Fri Oct 30** (daytime) | Rack Vision AR overlay polish + link to incidents; eval run on everything. **Checkpoint: robust demo before the weekend.** *Fireworks session, 12 PM ET* |
 
 *Fri evening → Sun evening: off.*
 
-### Week 2 — Extras, polish, submit
+### Week 2
 
 | Day | Goal |
 |---|---|
-| **Mon Nov 2** | Phase 2 extras: **Rack Vision** (phone photo + SAM 3.1 + config cross-check) first, then open weights, voice, Slack / Mail, more scenarios |
-| **Tue Nov 3** | Freeze features, final README (clearly state what was built during the hackathon), rehearse demo, record 3-min video. Last day for submission support questions |
+| **Mon Nov 2** | Plug the real hardware into Rack Vision (switch adapter for its model); optional items if time |
+| **Tue Nov 3** | Feature freeze, final eval run, README (built-during-hackathon statement, eval table), rehearse demo ×5, record 3-min video + backup takes |
 | **Wed Nov 4** | Final fixes, X post, **submit before noon**; the rest of the day is buffer |
 
 ## To Prepare
 
-- [ ] Meta API key (credits requested, pending) + read docs on tool-calling format (OpenAI-compatible?)
-- [ ] 4 NixOS VMs on Proxmox, SSH key access, IP list
-- [ ] Telegram bot (@BotFather) + Discord bot
-- [ ] Status of DGX Spark access / Baseten credits
+- [x] Meta API key + credits
+- [ ] Rotate the Meta API key before the repo goes public (it was pasted in a chat)
+- [ ] Test `sops -d secrets.yaml` with the GPG card
+- [ ] Hardware for Rack Vision: switch model, management access (SSH/SNMP), cables + labels
+- [ ] Photos of the rack/switch (front, ports, labels) to develop the vision pipeline before Monday
+- [ ] Install the netmedic local CA on the iPhone (Thursday)
+- [ ] Status of DGX Spark access / Baseten credits (optional)
 
 ## Hackathon Reminders
 
@@ -162,8 +191,7 @@ Phone camera (web page, <input capture>, no app)
 - ✅ Safe remediation (pulled forward from Wed): typed actions + typed checks, BIRD `configure check` → `configure timeout` → verify → `confirm` | rollback, `netmedic fix --mode approval|auto`, Markdown incident reports in `reports/`
 - ✅ `fix --mode auto` resolved bgp-peer-as (6 s), link-down (5 s, from a vague latency alert) and dns-firewall autonomously; executor tested on wrong fix (rolled back) and invalid config (rejected)
 
-### Next (Wed Oct 28)
 - ✅ Detection (pulled forward): `netmedic watch` probes BGP, loopback reachability, DNS and best-path drift vs a learned baseline every 5 s; 2-poll confirmation, 20 s settle after incidents, max attempts then escalation; `POST /api/alerts` (Alertmanager or generic) + `GET /api/status`. link-down injected → detected and fixed autonomously in 51 s; fake alert on healthy network → "no remediation"
 - ✅ Multi-root-cause plans: diagnosis = ordered plan (one fix per independent root cause, each verified/rolled back on its own) + alternatives. `chaos.sh meltdown` (3 simultaneous faults, ring split in two) fixed in ONE incident, 116 s, 47 tool calls (was 3 incidents, 325 s, 118 calls)
 
-- Test prefix-filter + dns-service end to end; then web UI work can start early
+- ✅ Web UI (pulled forward from Thu): live topology, symptoms by kind, live incident feed (SSE), approve/reject from the browser, auto/approval switch, report a problem, incident history

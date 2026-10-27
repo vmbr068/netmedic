@@ -23,7 +23,9 @@ Rules:
 - Check both ends of a link or session. Work layer by layer (L1/L2 -> L3 -> transport -> control plane).
 - Run independent checks in parallel (several tool calls in one turn).
 - Follow the matching runbook when one applies, but deviate when evidence points elsewhere.
-- Stop as soon as the root cause is proven; do not run redundant commands.
+- Stop as soon as the root cause is proven; do not run redundant commands. Aim for 3-4 rounds.
+- Reachability, best-path and DNS symptoms are usually consequences of a link or routing failure:
+  once a root cause explains them, confirm with one check instead of investigating each symptom.
 - Finish by calling submit_diagnosis exactly once.
 
 Remediations:
@@ -44,11 +46,17 @@ Remediations:
 - Checks must prove the symptom fixed by that step is gone (session Established, route present via
   the expected protocol, ping, DNS resolution), on the affected routers.
 - Put other options you considered in `alternatives` (never applied).
+- If part of the problem is outside what you manage (a provider, hardware, an unmanaged device),
+  fix what you can on our side, then describe in `escalation` who must act and the evidence to
+  give them. netmedic will notify a human and stop re-investigating those symptoms.
 - If the symptoms have already cleared (e.g. routing reconverging after a recent change) and no
   root cause remains, say so and submit an empty plan: never change a healthy network.
 
-Network inventory:
+Network inventory (managed routers):
 {inventory}
+
+Network design notes:
+{notes}
 
 Runbooks:
 {runbooks}
@@ -64,26 +72,46 @@ class Agent:
         runbooks: list[Runbook],
         on_event: EventSink = noop_sink,
         max_steps: int = 20,
+        tier: int = 0,
     ):
         self.settings = settings
-        self.client = AsyncOpenAI(api_key=settings.api_key, base_url=settings.api_base)
+        self.tier = settings.tier(tier)
+        # The SDK retries 408/409/429/5xx and connection errors with exponential backoff.
+        self.client = AsyncOpenAI(
+            api_key=settings.api_key, base_url=settings.api_base,
+            max_retries=settings.api_max_retries, timeout=settings.api_timeout,
+        )
         self.toolbox = toolbox
         self.on_event = on_event
         self.max_steps = max_steps
-        inv = "\n".join(f"- {r.name}: {r.host}, AS{r.asn}" for r in inventory.routers.values())
+        self.usage = {"model": self.tier.label, "llm_calls": 0, "prompt_tokens": 0, "cached_tokens": 0,
+                      "completion_tokens": 0, "reasoning_tokens": 0, "tool_calls": 0, "cost_usd": None}
+        inv = "\n".join(
+            f"- {r.name}: AS{r.asn}, loopback {r.loopback}" + (f", role {r.role}" if r.role else "")
+            for r in inventory.routers.values()
+        )
         self.system = SYSTEM_PROMPT.format(
-            inventory=inv, runbooks="\n".join(rb.render() for rb in runbooks) or "(none)"
+            inventory=inv, notes=inventory.notes.strip() or "(none)",
+            runbooks="\n".join(rb.render() for rb in runbooks) or "(none)",
         )
 
     async def _complete(self, messages: list[dict[str, Any]]) -> Any:
-        extra = {"reasoning_effort": self.settings.reasoning_effort} if self.settings.reasoning_effort else {}
+        extra = {"reasoning_effort": self.tier.reasoning_effort} if self.tier.reasoning_effort else {}
         resp = await self.client.chat.completions.create(
-            model=self.settings.model,
+            model=self.tier.name,
             messages=messages,
             tools=[*self.toolbox.schemas(), DIAGNOSIS_TOOL],
             tool_choice="auto",
             **extra,
         )
+        self.usage["llm_calls"] += 1
+        if u := resp.usage:
+            self.usage["prompt_tokens"] += u.prompt_tokens or 0
+            self.usage["completion_tokens"] += u.completion_tokens or 0
+            self.usage["cached_tokens"] += getattr(u.prompt_tokens_details, "cached_tokens", 0) or 0
+            self.usage["reasoning_tokens"] += getattr(u.completion_tokens_details, "reasoning_tokens", 0) or 0
+            self.usage["cost_usd"] = self.settings.cost(
+                self.tier.name, self.usage["prompt_tokens"], self.usage["cached_tokens"], self.usage["completion_tokens"])
         return resp.choices[0].message
 
     async def _run_tool(self, call: Any) -> dict[str, Any]:
@@ -93,12 +121,20 @@ class Agent:
         except json.JSONDecodeError as e:
             args, output = {}, f"error: invalid JSON arguments: {e}"
         else:
+            self.usage["tool_calls"] += 1
             await self.on_event(Event("tool_call", {"id": call.id, "name": name, "args": args}))
             output = await self.toolbox.call(name, args)
         await self.on_event(Event("tool_result", {"id": call.id, "name": name, "args": args, "output": output}))
         return {"role": "tool", "tool_call_id": call.id, "content": output}
 
     async def investigate(self, incident: str) -> Diagnosis:
+        await self.on_event(Event("model", {"text": f"investigating with {self.tier.label}", "model": self.tier.label}))
+        try:
+            return await self._investigate(incident)
+        finally:
+            await self.on_event(Event("usage", dict(self.usage)))
+
+    async def _investigate(self, incident: str) -> Diagnosis:
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.system},
             {"role": "user", "content": f"Incident: {incident}\nInvestigate and submit your diagnosis."},

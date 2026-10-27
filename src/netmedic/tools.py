@@ -98,6 +98,22 @@ DIAGNOSTIC_TOOLS: list[Tool] = [
         + ["all"],
     ),
     Tool(
+        "bird_ospf",
+        "OSPF state: neighbors (adjacency state per interface, e.g. Full or stuck in ExStart), "
+        "interfaces (cost, MTU, timers, area) or topology (link-state database summary).",
+        _params(what={"type": "string", "enum": ["neighbors", "interface", "topology"],
+                      "description": "What to show"}),
+        lambda a: ["birdc", "show", "ospf", {"neighbors": "neighbors", "interface": "interface",
+                                             "topology": "topology"}[a["what"]]],
+    ),
+    Tool(
+        "bird_exported",
+        "Routes this router actually announces to one BGP neighbour after its export filter "
+        "(use it to verify what a peer or provider receives).",
+        _params(protocol={**_STR, "description": "BGP protocol name, e.g. ebgp_isp2"}),
+        lambda a: ["birdc", "show", "route", "export", _name(a["protocol"], "protocol")],
+    ),
+    Tool(
         "bird_config",
         "Read the BIRD configuration files actually loaded on the router (base + agent-managed includes).",
         _params(),

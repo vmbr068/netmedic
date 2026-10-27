@@ -1,0 +1,14 @@
+id: upstream-failover
+title: Internet / upstream provider issue
+triggers:
+  - external targets (the internet) unreachable from some or all routers
+  - eBGP session to a provider down, or default route moved to the backup edge
+steps:
+  - Check the eBGP sessions on the edges (bird_protocol_detail) and which edge currently carries the default route (bird_routes prefix=0.0.0.0/0).
+  - 'If a provider session is down while our side is healthy, the fault is on the provider side and cannot be fixed by us; escalate it and make sure the backup path works.'
+  - Verify what each edge announces to its provider (bird_exported protocol=ebgp_<isp>) - our aggregates must be there, otherwise return traffic cannot come back.
+  - Read the upstream export filter (bird_config, 10-policy.conf) and compare with the design notes.
+  - 'Test from different source networks (datacenter vs branch); a partial outage points to one missing aggregate.'
+known_causes:
+  - 'Backup edge does not announce one of our aggregates -> failover only half works'
+  - 'Routes from an edge are "unreachable" on the cores -> next hop self missing on that edge'

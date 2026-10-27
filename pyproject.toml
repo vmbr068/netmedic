@@ -13,6 +13,8 @@ dependencies = [
     "typer>=0.12",
     "fastapi>=0.115",
     "uvicorn>=0.30",
+    "cryptography>=43",
+    "segno>=1.6",
 ]
 
 [project.scripts]

@@ -130,6 +130,10 @@ class Diagnosis(BaseModel):
     alternatives: list[Remediation] = Field(
         default_factory=list, description="Other options considered, not applied"
     )
+    escalation: str = Field(
+        "", description="If part of the problem is outside the managed routers (a provider, hardware, "
+        "a person), who must act and what to tell them. Empty otherwise."
+    )
 
 
 DIAGNOSIS_TOOL = {

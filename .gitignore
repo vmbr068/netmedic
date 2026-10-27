@@ -7,3 +7,4 @@ result-*
 reports/
 lab/state/
 inventory.yaml
+certs/

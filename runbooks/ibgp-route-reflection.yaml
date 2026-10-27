@@ -1,0 +1,13 @@
+id: ibgp-route-reflection
+title: Prefixes missing although every BGP session is Established
+triggers:
+  - a router lost routes (best path missing) while all its sessions are up
+  - the default route or datacenter prefixes vanish from some routers only
+steps:
+  - Compare the routing table of a router that has the prefix with one that lost it (bird_routes prefix=...).
+  - Check what the route reflectors send to their clients (bird_exported protocol=ibgp_<client> on core1/core2).
+  - Read the iBGP session definitions on the reflectors (bird_config, 30-bgp.conf) - every client session needs "rr client".
+  - Check next hops - iBGP routes with an unresolvable next hop are ignored (next hop self ebgp on edges/cores).
+known_causes:
+  - '"rr client" missing on the reflectors -> routes from non-clients are not reflected to other non-clients'
+  - 'next hop self missing -> next hop is a provider link not known by OSPF -> route unreachable'

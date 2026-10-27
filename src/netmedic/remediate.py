@@ -44,6 +44,10 @@ class RemediationError(Exception):
     pass
 
 
+async def _nothing() -> None:
+    """Undo for an action that turned out to be already applied."""
+
+
 @dataclass
 class CheckResult:
     check: Check
@@ -107,6 +111,11 @@ class Executor:
         path = f"{AGENT_DIR}/{a.file}"
         original = await self._must(a.router, ["cat", path])
         count = original.count(a.find)
+        if count == 0 and a.replace and a.replace in original:
+            # Someone (an operator, another tool, a previous attempt) already made this change:
+            # nothing to do, the checks decide whether the incident is fixed.
+            await self._log(outcome, "action", f"{a.router}: {path} already contains the fix, nothing to change")
+            return _nothing
         if count != 1:
             raise RemediationError(f"{a.router}:{path}: snippet to replace found {count} times (expected 1)")
         await self._write_file(a.router, path, original.replace(a.find, a.replace, 1))
@@ -149,12 +158,21 @@ class Executor:
 
         return restore
 
-    async def _nft_snapshot(self, router: str, family: str, table: str) -> str:
-        return await self._must(router, ["nft", "list", "table", family, table])
+    async def _nft_snapshot(self, router: str, family: str, table: str) -> str | None:
+        """Table listing with rule handles (comments, so it can be replayed with nft -f), None if absent."""
+        res = await self._run(router, ["nft", "-a", "list", "table", family, table])
+        if res.exit_status == 0:
+            return res.stdout
+        if "No such file" in res.stderr:
+            return None
+        raise RemediationError(f"{router}: `{res.command}` failed: {res.stderr.strip()}")
 
     async def _delete_nft_rule(self, a: DeleteNftRule, outcome: Outcome) -> Undo:
         family, table, chain = (_ident(x, "nft name") for x in (a.family, a.table, a.chain))
         snapshot = await self._nft_snapshot(a.router, family, table)
+        if snapshot is None or f"# handle {int(a.handle)}\n" not in snapshot + "\n":
+            await self._log(outcome, "action", f"{a.router}: nft rule {family} {table} handle {a.handle} already gone, nothing to change")
+            return _nothing
         await self._must(a.router, ["nft", "delete", "rule", family, table, chain, "handle", str(int(a.handle))])
         await self._log(outcome, "action", f"{a.router}: nft delete rule {family} {table} {chain} handle {a.handle}")
 
@@ -169,6 +187,9 @@ class Executor:
         if table in PROTECTED_TABLES:
             raise RemediationError(f"refusing to delete protected table {table!r}")
         snapshot = await self._nft_snapshot(a.router, family, table)
+        if snapshot is None:
+            await self._log(outcome, "action", f"{a.router}: nft table {family} {table} already gone, nothing to change")
+            return _nothing
         await self._must(a.router, ["nft", "delete", "table", family, table])
         await self._log(outcome, "action", f"{a.router}: nft delete table {family} {table}")
 
@@ -181,10 +202,7 @@ class Executor:
         await self._must(a.router, ["systemctl", "restart", a.service])
         await self._log(outcome, "action", f"{a.router}: systemctl restart {a.service}")
 
-        async def restore() -> None:  # a restart has no meaningful undo
-            pass
-
-        return restore
+        return _nothing  # a restart has no meaningful undo
 
     async def _apply(self, action: Action, outcome: Outcome) -> Undo:
         handlers = {

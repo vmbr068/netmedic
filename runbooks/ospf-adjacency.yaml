@@ -1,0 +1,14 @@
+id: ospf-adjacency
+title: OSPF adjacency not Full
+triggers:
+  - an OSPF neighbor is missing or stuck in Init, 2-Way, ExStart or Exchange
+  - loopbacks or iBGP sessions flap while links are up
+steps:
+  - List OSPF neighbors on BOTH routers of the link (bird_ospf what=neighbors).
+  - Compare the OSPF interface settings on both ends - area, cost, hello/dead timers, MTU (bird_ospf what=interface, interfaces).
+  - Read BIRD logs on both ends for explicit OSPF errors (bird_logs) - e.g. "MTU mismatch", "hello interval mismatch".
+  - Check the link itself (interfaces, ping across the /30) and the firewall (protocol 89 must be accepted).
+known_causes:
+  - 'Stuck in ExStart/Exchange + "MTU mismatch" in logs -> interface MTU differs on the two ends'
+  - 'No neighbor at all + ping OK -> area/timer mismatch or OSPF blocked by the firewall'
+  - 'Redundant paths often hide a broken adjacency: traffic still flows, but there is no redundancy left'

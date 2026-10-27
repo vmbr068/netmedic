@@ -16,6 +16,7 @@ def render_report(incident: str, result: IncidentResult, mode: str, started: dat
         f"# Incident report — {started:%Y-%m-%d %H:%M:%S}",
         "",
         f"**Status:** {result.status}  ",
+        f"**Duration:** {(datetime.now() - started).total_seconds():.1f}s  ",
         f"**Mode:** {mode}  ",
         "",
         "## Alert",
@@ -35,6 +36,8 @@ def render_report(incident: str, result: IncidentResult, mode: str, started: dat
         lines.append(f"- **{h.confidence:.0%} — {h.cause}**")
         lines += [f"  - `{e}`" for e in h.evidence]
 
+    if dx.escalation.strip():
+        lines += ["", "## Escalation", dx.escalation]
     lines += ["", "## Remediation plan"]
     if not result.steps:
         lines.append("No change needed.")

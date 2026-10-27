@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f4f5f6">
+<title>netmedic</title>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<style>
+:root {
+  --bg: #f4f5f6; --panel: #ffffff; --panel-2: #f9fafa; --hover: #f2f3f5; --sel: #eaf2ff;
+  --line: #e6e8eb; --line-2: #d9dce0;
+  --text: #212327; --text-2: #50565e; --text-3: #8b9097;
+  --blue: #006fff; --blue-hover: #0059cc; --blue-soft: #e5f0ff;
+  --green: #00b85c; --green-soft: #e3f7ec;
+  --orange: #f59c00; --orange-soft: #fff3df;
+  --red: #ef3d3d; --red-soft: #fde8e8;
+  --violet: #7a5af8; --violet-soft: #efebff;
+  --link: #c4c8ce; --device: #ffffff; --device-line: #cfd3d8; --device-face: #f2f3f5;
+  --shadow: 0 1px 2px rgba(17,24,39,.04);
+  --pop: 0 8px 24px rgba(17,24,39,.12), 0 1px 3px rgba(17,24,39,.08);
+  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:root[data-theme="dark"] {
+  --bg: #121315; --panel: #1b1c1f; --panel-2: #202125; --hover: #24262a; --sel: #14243d;
+  --line: #2a2c30; --line-2: #34373c;
+  --text: #e8e9eb; --text-2: #b0b4ba; --text-3: #7d828a;
+  --blue: #2b84ff; --blue-hover: #4d97ff; --blue-soft: #14243d;
+  --green-soft: #10291c; --orange-soft: #2e230f; --red-soft: #321617; --violet-soft: #221d3a;
+  --link: #4a4e55; --device: #26282c; --device-line: #3d4046; --device-face: #1f2023;
+  --shadow: none; --pop: 0 8px 24px rgba(0,0,0,.45);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 var(--font); display: flex;
+       -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+svg.i { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+/* ---------- icon rail ---------- */
+.rail { width: 56px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column;
+        align-items: center; padding: 10px 0; gap: 4px; z-index: 5; }
+.rail .home { width: 36px; height: 36px; border-radius: 9px; background: var(--blue); display: grid; place-items: center; margin-bottom: 10px; }
+.rail .home svg { width: 20px; height: 20px; stroke: #fff; stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.ri { position: relative; width: 40px; height: 40px; border-radius: 9px; border: 0; background: none; color: var(--text-3);
+      display: grid; place-items: center; cursor: pointer; }
+.ri:hover { background: var(--hover); color: var(--text); }
+.ri.on { color: var(--blue); background: var(--blue-soft); }
+.ri .tip { position: absolute; left: 50px; top: 50%; transform: translateY(-50%); background: var(--text); color: var(--panel);
+           padding: 4px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .12s; }
+.ri:hover .tip { opacity: 1; }
+.ri .bdg { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+           box-shadow: 0 0 0 2px var(--panel); display: none; }
+.rail .spacer { flex: 1; }
+
+/* ---------- header ---------- */
+.app { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+header { height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 20px; background: var(--panel);
+         border-bottom: 1px solid var(--line); }
+.product { font-weight: 700; font-size: 15px; letter-spacing: -.1px; }
+.sep { width: 1px; height: 20px; background: var(--line-2); }
+.site { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-weight: 600; }
+.site svg { width: 14px; height: 14px; }
+.grow { flex: 1; }
+.status { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 12px; color: var(--text-2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.dot.live { animation: pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 currentColor; } 70% { box-shadow: 0 0 0 5px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.ok { color: var(--green); } .warn { color: var(--orange); } .bad { color: var(--red); } .info { color: var(--blue); }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; background: var(--panel); padding: 5px 12px; color: var(--text-2); cursor: pointer; font-weight: 600; font-size: 12px; }
+.seg button + button { border-left: 1px solid var(--line-2); }
+.seg button.on { background: var(--blue); color: #fff; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 7px; border: 1px solid var(--line-2);
+       background: var(--panel); color: var(--text); font-weight: 600; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.btn svg.i { width: 15px; height: 15px; }
+.btn:hover { background: var(--hover); }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn.primary:hover { background: var(--blue-hover); }
+.btn.green { background: var(--green); border-color: var(--green); color: #fff; }
+.btn.red { color: var(--red); border-color: var(--red); background: transparent; }
+.btn.link { border-color: transparent; background: none; color: var(--blue); padding: 0 6px; height: auto; }
+.timer { font: 600 12px var(--mono); color: var(--text-3); }
+
+/* ---------- layout ---------- */
+main { flex: 1; overflow: auto; padding: 18px 20px 28px; }
+.view { display: none; } .view.on { display: block; }
+.ptitle { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; }
+.ptitle h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.2px; }
+.ptitle .muted { color: var(--text-3); }
+.g { display: grid; gap: 14px; }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 14px; }
+.g2 { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); margin-bottom: 14px; }
+.fill { display: flex; flex-direction: column; } .fill > svg { flex: 1; min-height: 360px; }
+.w { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); min-width: 0; }
+.wh { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.wh h3 { margin: 0; font-size: 13px; font-weight: 700; }
+.wh .muted { color: var(--text-3); font-size: 12px; }
+.wb { padding: 14px 16px; }
+.muted { color: var(--text-3); }
+
+/* stat widgets */
+.stat { padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 118px; }
+.stat .t { display: flex; justify-content: space-between; align-items: center; color: var(--text-2); font-weight: 600; font-size: 12px; }
+.stat .big { font-size: 26px; font-weight: 700; letter-spacing: -.5px; line-height: 1; }
+.stat .big small { font-size: 13px; font-weight: 600; color: var(--text-3); letter-spacing: 0; }
+.stat .sub { color: var(--text-3); font-size: 12px; display: flex; gap: 12px; }
+.stat .sub b { font-weight: 600; }
+.spark { width: 100%; height: 34px; display: block; }
+.spark path.f { fill: var(--blue-soft); } .spark path.l { fill: none; stroke: var(--blue); stroke-width: 1.6; }
+.bar { height: 6px; border-radius: 3px; background: var(--hover); overflow: hidden; display: flex; }
+.bar i { display: block; height: 100%; }
+
+/* topology */
+svg.topo { width: 100%; display: block; }
+.lk { fill: none; stroke: var(--link); stroke-width: 2; transition: stroke .3s; }
+.lk.down { stroke: var(--red); stroke-dasharray: 6 5; animation: dash 1s linear infinite; }
+.lk.ext { stroke-dasharray: 2 4; }
+@keyframes dash { to { stroke-dashoffset: -22; } }
+.lk-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+.lbl { font: 600 10.5px var(--font); text-anchor: middle; paint-order: stroke; stroke: var(--panel); stroke-width: 5px; stroke-linejoin: round; }
+.lbl.up { fill: var(--text-3); } .lbl.down { fill: var(--red); }
+.dv { cursor: pointer; }
+.dv .chassis { fill: var(--device); stroke: var(--device-line); stroke-width: 1.3; transition: stroke .2s; }
+.dv .face { fill: var(--device-face); }
+.dv .port { fill: var(--device-line); }
+.dv .port.lit { fill: var(--green); }
+.dv .led { fill: var(--green); }
+.dv.warn .led { fill: var(--orange); } .dv.bad .led { fill: var(--red); }
+.dv:hover .chassis, .dv.sel .chassis { stroke: var(--blue); stroke-width: 2; }
+.dv .nm { font: 700 12.5px var(--font); fill: var(--text); text-anchor: middle; }
+.dv .mt { font: 500 11px var(--font); fill: var(--text-3); text-anchor: middle; }
+.dv .nm, .dv .mt { paint-order: stroke; stroke: var(--panel); stroke-width: 6px; stroke-linejoin: round; }
+.ext circle { fill: var(--panel-2); stroke: var(--device-line); stroke-width: 1.3; }
+.ext text { font: 600 10px var(--font); fill: var(--text-2); text-anchor: middle; }
+.legend { display: flex; gap: 14px; color: var(--text-3); font-size: 11.5px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 18px; height: 0; border-top: 2px solid var(--link); display: inline-block; }
+.legend i.d { border-top: 2px dashed var(--red); }
+.tlayout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; }
+
+/* side panel */
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.kv:last-child { border: 0; }
+.kv .k { color: var(--text-3); } .kv .v { font-weight: 600; text-align: right; }
+.sect { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 4px; }
+.mono { font-family: var(--mono); font-size: 12px; }
+
+/* status text (UniFi-like) */
+.st { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.p-ok { background: var(--green-soft); color: var(--green); } .p-warn { background: var(--orange-soft); color: var(--orange); }
+.p-bad { background: var(--red-soft); color: var(--red); } .p-info { background: var(--blue-soft); color: var(--blue); }
+.p-vio { background: var(--violet-soft); color: var(--violet); } .p-grey { background: var(--hover); color: var(--text-2); }
+
+/* tables */
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--text-3); padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+td { padding: 10px 16px; border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+tbody tr.click { cursor: pointer; } tbody tr.click:hover td { background: var(--hover); }
+.dname { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.thumb { width: 34px; height: 22px; flex-shrink: 0; }
+
+/* incident */
+.steps { display: flex; gap: 0; padding: 14px 16px 4px; }
+.sp { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; min-width: 0; }
+.sp::before { content: ""; position: absolute; top: 9px; left: -50%; width: 100%; height: 2px; background: var(--line-2); z-index: 0; }
+.sp:first-child::before { display: none; }
+.sp .c { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line-2); background: var(--panel); z-index: 1;
+         display: grid; place-items: center; }
+.sp .c svg { width: 11px; height: 11px; stroke: #fff; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; display: none; }
+.sp .n { font-size: 11px; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+.sp.done .c { background: var(--green); border-color: var(--green); } .sp.done .c svg { display: block; }
+.sp.done::before, .sp.cur::before { background: var(--green); }
+.sp.done .n { color: var(--text-2); }
+.sp.cur .c { border-color: var(--blue); box-shadow: 0 0 0 4px var(--blue-soft); } .sp.cur .n { color: var(--blue); }
+.sp.fail .c { background: var(--red); border-color: var(--red); } .sp.fail .n { color: var(--red); }
+.feed { max-height: 420px; overflow: auto; padding: 6px 16px 14px; }
+.ev { display: grid; grid-template-columns: 56px 18px minmax(0, 1fr); gap: 8px; align-items: start; padding: 6px 0;
+      border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.ev:last-child { border: 0; }
+.ev .tm { font: 11px var(--mono); color: var(--text-3); padding-top: 1px; }
+.ev .ic { width: 18px; height: 18px; display: grid; place-items: center; }
+.ev .ic svg.i { width: 15px; height: 15px; stroke-width: 2; }
+.ev .tx { overflow-wrap: anywhere; }
+.ev.think .tx { color: var(--text-2); font-style: italic; }
+.ev details summary { cursor: pointer; list-style: none; font: 12px var(--mono); }
+.ev details summary::-webkit-details-marker { display: none; }
+.ev details pre { margin: 6px 0 2px; padding: 8px 10px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line);
+                  font: 11px/1.45 var(--mono); color: var(--text-2); white-space: pre-wrap; max-height: 220px; overflow: auto; }
+.run { color: var(--text-3); font: 11px var(--font); margin-left: 6px; }
+.box { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 12px; margin: 8px 0; }
+.box h4 { margin: 0 0 4px; font-size: 13px; }
+.box p { margin: 0 0 8px; color: var(--text-2); }
+.pstep { display: flex; gap: 10px; padding: 8px 0 2px; border-top: 1px solid var(--line); }
+.pstep .num { width: 20px; height: 20px; border-radius: 50%; background: var(--blue); color: #fff; font-size: 11px; font-weight: 700;
+              display: grid; place-items: center; flex-shrink: 0; }
+.pstep code { display: block; margin-top: 3px; font: 11px var(--mono); color: var(--text-3); white-space: pre-wrap; overflow-wrap: anywhere; }
+.appr { border: 1px solid var(--orange); background: var(--orange-soft); border-radius: 8px; padding: 12px; margin: 8px 0; }
+.appr .acts { display: flex; gap: 8px; margin-top: 10px; }
+.result { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-radius: 8px; font-weight: 700; margin: 10px 0 2px; }
+.result svg.i { width: 18px; height: 18px; stroke-width: 2.4; }
+.empty { text-align: center; color: var(--text-3); padding: 36px 16px; }
+.empty .ico { width: 44px; height: 44px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: grid; place-items: center; margin: 0 auto 10px; }
+.empty b { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
+
+/* symptoms */
+.sym { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sym:last-child { border: 0; }
+
+/* incidents page */
+.ilayout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 14px; }
+.item { padding: 11px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.item:hover { background: var(--hover); } .item.sel { background: var(--sel); }
+.item .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; }
+.item .r2 { color: var(--text-3); font-size: 12px; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.md { padding: 4px 22px 22px; max-height: calc(100vh - 160px); overflow: auto; }
+.md h1 { font-size: 17px; } .md h2 { font-size: 13.5px; margin-top: 20px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.md h3 { font-size: 13px; } .md li { margin: 3px 0; }
+.md code { font: 11.5px var(--mono); background: var(--panel-2); border: 1px solid var(--line); padding: 0 4px; border-radius: 4px; overflow-wrap: anywhere; }
+
+/* modal, toasts */
+.ov { position: fixed; inset: 0; background: rgba(17,24,39,.35); display: none; place-items: center; z-index: 50; }
+.ov.on { display: grid; }
+.modal { width: min(460px, 92vw); background: var(--panel); border-radius: 12px; box-shadow: var(--pop); }
+.modal textarea { width: 100%; min-height: 96px; border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; background: var(--panel);
+                  color: var(--text); font: inherit; resize: vertical; }
+.modal textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+.modal .acts { display: flex; justify-content: flex-end; gap: 8px; padding: 0 16px 16px; }
+.toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 60; }
+.toast { display: flex; gap: 10px; align-items: flex-start; width: 320px; background: var(--panel); border-radius: 10px; box-shadow: var(--pop);
+         padding: 12px 14px; animation: slide .22s ease-out; }
+.toast .ic { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
+.toast .ic svg.i { width: 13px; height: 13px; stroke-width: 2.6; }
+.toast b { display: block; font-size: 13px; } .toast span { color: var(--text-2); font-size: 12px; }
+@keyframes slide { from { opacity: 0; transform: translateY(8px); } }
+
+@media (max-width: 1150px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g2, .tlayout, .ilayout { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  body { flex-direction: column-reverse; }
+  .rail { width: 100%; height: 56px; flex-direction: row; justify-content: space-around; padding: 0 6px; border-right: 0; border-top: 1px solid var(--line); }
+  .rail .home, .rail .spacer, .ri .tip { display: none; }
+  header { padding: 0 12px; } .site, .sep, #reportBtn span { display: none; }
+  main { padding: 12px; } .g4 { gap: 10px; }
+  .toast { width: calc(100vw - 36px); }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="8" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="14.5" width="7" height="6" rx="1.5"/></symbol>
+  <symbol id="i-topo" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-2h12v2M12 12v2"/></symbol>
+  <symbol id="i-dev" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="6" rx="1.5"/><rect x="3" y="13" width="18" height="6" rx="1.5"/><path d="M7 8h.01M7 16h.01M11 8h6M11 16h6"/></symbol>
+  <symbol id="i-inc" viewBox="0 0 24 24"><path d="M12 3.5l9 15.5H3z"/><path d="M12 10v4M12 16.5h.01"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/></symbol>
+  <symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 5a3 3 0 0 0-5.5 1.5A3 3 0 0 0 4.5 12a3 3 0 0 0 2 5.5A3 3 0 0 0 12 19zM12 5a3 3 0 0 1 5.5 1.5 3 3 0 0 1 2 5.5 3 3 0 0 1-2 5.5A3 3 0 0 1 12 19"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15H17"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 0 5 5L12 19a2.1 2.1 0 0 1-3-3l7.5-7.5a4 4 0 0 1-2-2z"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11m0-5.5a1.5 1.5 0 0 1 3 0V11m0-4a1.5 1.5 0 0 1 3 0v6a7 7 0 0 1-12.5 4.3L4 15a1.5 1.5 0 0 1 2.5-1.6L8 15"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2.5v3M15 2.5v3M9 18.5v3M15 18.5v3M2.5 9h3M2.5 15h3M18.5 9h3M18.5 15h3"/></symbol>
+</defs></svg>
+
+<nav class="rail">
+  <div class="home" title="netmedic"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></div>
+  <button class="ri on" data-view="dashboard"><svg class="i"><use href="#i-dash"/></svg><span class="tip">Dashboard</span></button>
+  <button class="ri" data-view="topology"><svg class="i"><use href="#i-topo"/></svg><span class="tip">Topology</span></button>
+  <button class="ri" data-view="devices"><svg class="i"><use href="#i-dev"/></svg><span class="tip">Devices</span></button>
+  <button class="ri" data-view="incidents"><svg class="i"><use href="#i-inc"/></svg><span class="tip">Incidents</span><span class="bdg" id="navBadge"></span></button>
+  <button class="ri" data-view="vision"><svg class="i"><use href="#i-cam"/></svg><span class="tip">Rack Vision</span></button>
+  <div class="spacer"></div>
+  <button class="ri" id="themeBtn"><svg class="i"><use href="#i-theme"/></svg><span class="tip">Light / dark</span></button>
+</nav>
+
+<div class="app">
+  <header>
+    <span class="product">netmedic</span><span class="sep"></span>
+    <span class="site">Lab Network <svg class="i"><use href="#i-chev"/></svg></span>
+    <span class="status" id="status"><span class="dot"></span><span id="statusText">Connecting…</span></span>
+    <span class="timer" id="timer"></span>
+    <div class="grow"></div>
+    <div class="seg" id="mode" title="Remediation mode"><button data-mode="auto">Auto</button><button data-mode="approval">Approval</button></div>
+    <button class="btn primary" id="reportBtn"><svg class="i"><use href="#i-flag"/></svg><span>Report Issue</span></button>
+  </header>
+
+  <main>
+    <!-- DASHBOARD -->
+    <section class="view on" id="view-dashboard">
+      <div class="g g4">
+        <div class="w stat"><div class="t">Network Health<span class="pill p-grey" id="healthPill">–</span></div>
+          <div class="big" id="kHealth">–</div><svg class="spark" id="spark" viewBox="0 0 200 34" preserveAspectRatio="none"></svg></div>
+        <div class="w stat"><div class="t">Devices</div><div class="big" id="kDevices">–</div>
+          <div class="bar" id="devBar"></div><div class="sub" id="devSub"></div></div>
+        <div class="w stat"><div class="t">Routing Sessions</div><div class="big" id="kSessions">–</div>
+          <div class="bar" id="sessBar"></div><div class="sub" id="sessSub"></div></div>
+        <div class="w stat"><div class="t">Incidents<span class="muted" style="font-weight:500">last 24h</span></div><div class="big" id="kIncidents">–</div>
+          <div class="sub"><span>Avg. resolution <b id="kMttr">–</b></span><span>Resolved <b id="kRate">–</b></span></div></div>
+      </div>
+      <div class="g g2">
+        <div class="w fill"><div class="wh"><h3>Topology</h3><span class="muted" id="topoSub"></span><div class="grow"></div>
+          <div class="legend"><span><i></i>Connected</span><span><i class="d"></i>Down</span></div></div>
+          <svg class="topo" id="topoMini" viewBox="0 0 640 360"></svg></div>
+        <div class="w"><div class="wh"><h3>Live Incident</h3><span class="muted" id="incSub">Detect · Diagnose · Fix · Verify</span></div>
+          <div id="incidentBody"></div></div>
+      </div>
+      <div class="g g2">
+        <div class="w"><div class="wh"><h3>Devices</h3><div class="grow"></div><button class="btn link" data-goto="devices">View all</button></div>
+          <table><colgroup><col><col style="width:110px"><col style="width:90px"><col style="width:90px"></colgroup>
+            <thead><tr><th>Name</th><th>Status</th><th>Sessions</th><th>Issues</th></tr></thead><tbody id="devMini"></tbody></table></div>
+        <div class="w"><div class="wh"><h3>Recent Incidents</h3><div class="grow"></div><button class="btn link" data-goto="incidents">View all</button></div>
+          <table><colgroup><col style="width:112px"><col><col style="width:80px"><col style="width:112px"></colgroup>
+            <thead><tr><th>Time</th><th>Summary</th><th>Duration</th><th>Status</th></tr></thead><tbody id="recent"></tbody></table></div>
+      </div>
+      <div class="w"><div class="wh"><h3>Active Symptoms</h3><span class="muted" id="symCount"></span></div><div class="wb" id="symptoms"></div></div>
+    </section>
+
+    <!-- TOPOLOGY -->
+    <section class="view" id="view-topology">
+      <div class="ptitle"><h1>Topology</h1><span class="muted" id="topoTitle"></span></div>
+      <div class="tlayout">
+        <div class="w"><svg class="topo" id="topoBig" viewBox="0 0 960 600" style="height:calc(100vh - 150px);min-height:440px"></svg></div>
+        <div class="w" id="devDetail"></div>
+      </div>
+    </section>
+
+    <!-- DEVICES -->
+    <section class="view" id="view-devices">
+      <div class="ptitle"><h1>Devices</h1><span class="muted" id="devCount"></span></div>
+      <div class="w"><table><colgroup><col><col style="width:130px"><col style="width:110px"><col style="width:140px"><col style="width:110px"><col style="width:90px"></colgroup>
+        <thead><tr><th>Name</th><th>Status</th><th>ASN</th><th>Loopback</th><th>Sessions</th><th>Issues</th></tr></thead><tbody id="devTable"></tbody></table></div>
+    </section>
+
+    <!-- INCIDENTS -->
+    <section class="view" id="view-incidents">
+      <div class="ptitle"><h1>Incidents</h1><span class="muted">Investigated, fixed, verified and documented automatically</span></div>
+      <div class="ilayout">
+        <div class="w" style="max-height:calc(100vh - 150px);overflow:auto" id="incList"></div>
+        <div class="w"><div class="md" id="reportView"><div class="empty">Select an incident to read its report.</div></div></div>
+      </div>
+    </section>
+
+    <!-- RACK VISION -->
+    <section class="view" id="view-vision">
+      <div class="ptitle"><h1>Rack Vision</h1><span class="muted">Point your phone at a rack, see faults on the live video</span></div>
+      <div class="w"><div class="empty"><div class="ico" style="background:var(--blue-soft);color:var(--blue)"><svg class="i"><use href="#i-cam"/></svg></div>
+        <b>Coming next</b>Muse Spark vision + SAM 3.1, cross-checked with live device data.</div></div>
+    </section>
+  </main>
+</div>
+
+<div class="ov" id="reportModal"><div class="modal">
+  <div class="wh"><h3>Report an Issue</h3><div class="grow"></div><button class="btn link" data-close style="color:var(--text-3)">✕</button></div>
+  <div class="wb"><p style="margin:0 0 10px;color:var(--text-2)">Describe what users experience. netmedic investigates and fixes it.</p>
+    <textarea id="reportText" placeholder="e.g. app.lab is slow from r2 since 10 minutes"></textarea></div>
+  <div class="acts"><button class="btn" data-close>Cancel</button><button class="btn primary" id="reportSend"><svg class="i"><use href="#i-send"/></svg>Send</button></div>
+</div></div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const icon = (n) => `<svg class="i"><use href="#i-${n}"/></svg>`;
+const hhmmss = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour12: false });
+const fmtDur = (s) => s == null ? "–" : s < 90 ? `${Math.round(s)}s` : `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;
+const STATUS = { ok: ["ok", "Online"], warn: ["warn", "Degraded"], bad: ["bad", "Offline"] };
+
+let state = null, selected = null, reports = [];
+const health = [];  // [ts, score] history for the sparkline
+const inc = { active: false, start: null, end: null, stage: -1, failed: false, events: [], tools: {} };
+const STAGES = ["Detected", "Investigating", "Plan", "Applying", "Verified"];
+
+// ---------- navigation & theme ----------
+function go(view) {
+  document.querySelectorAll(".ri[data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "view-" + view));
+  if (view === "incidents") loadReports();
+}
+document.querySelectorAll(".ri[data-view]").forEach((b) => b.onclick = () => go(b.dataset.view));
+document.querySelectorAll("[data-goto]").forEach((b) => b.onclick = () => go(b.dataset.goto));
+try { const t = localStorage.getItem("nm-theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+$("themeBtn").onclick = () => {
+  const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem("nm-theme", t); } catch {}
+  if (state) renderState(state);
+};
+
+// ---------- network model ----------
+function model(s) {
+  const names = Object.keys(s.routers);
+  const links = {};
+  for (const l of s.links || []) {
+    links[l.a + "|" + l.b] = { a: l.a, b: l.b, up: l.up, kind: l.kind || "ebgp",
+      ends: Object.fromEntries(Object.entries(l.ends).map(([r, e]) => [r, `${e.proto}: ${e.state}`])) };
+  }
+  if (!s.links) for (const [router, sessions] of Object.entries(s.sessions || {})) {
+    for (const [proto, info] of Object.entries(sessions)) {
+      const peer = proto.replace(/^bgp_/, "");
+      if (!(peer in s.routers)) continue;
+      const [a, b] = [router, peer].sort();
+      const l = links[a + "|" + b] = links[a + "|" + b] || { a, b, up: true, ends: {} };
+      l.ends[router] = `${proto}: ${info}`; l.up = l.up && info.startsWith("Established");
+    }
+  }
+  const devices = names.map((n) => {
+    const sess = Object.values((s.sessions || {})[n] || {});
+    const up = sess.filter((x) => x.startsWith("Established")).length;
+    const info = s.routers[n], issues = (s.symptoms || []).filter((x) => x.text.startsWith(n + ":"));
+    return { name: n, ...info, up, total: sess.length, issues, status: !info.reachable ? "bad" : issues.length ? "warn" : "ok" };
+  });
+  const sessUp = devices.reduce((a, d) => a + d.up, 0), sessTotal = devices.reduce((a, d) => a + d.total, 0);
+  const online = devices.filter((d) => d.reachable).length;
+  const score = Math.max(0, Math.min(100, Math.round(
+    100 - (devices.length - online) * 25 - (sessTotal - sessUp) * 6 - (s.symptoms || []).length * 1.5)));
+  return { names, links: Object.values(links), externals: s.externals || [], devices, sessUp, sessTotal, online, score };
+}
+
+// ---------- header & widgets ----------
+function renderState(s) {
+  state = s;
+  const m = model(s);
+  const st = $("status");
+  const set = (cls, text, live) => { st.className = "status " + cls; $("statusText").textContent = text; st.querySelector(".dot").classList.toggle("live", !!live); };
+  if (s.busy) set("info", "Remediating", true);
+  else if (!s.symptoms.length) set("ok", s.baseline_learned ? "All systems normal" : "Learning baseline…");
+  else if (s.settling) set("warn", "Reconverging", true);
+  else if (s.symptoms.every((x) => x.acknowledged)) set("warn", `Degraded · ${s.symptoms.length} escalated`);
+  else set("bad", `${s.symptoms.length} active issue${s.symptoms.length > 1 ? "s" : ""}`, true);
+  document.querySelectorAll("#mode button").forEach((b) => b.classList.toggle("on", b.dataset.mode === s.mode));
+
+  // health + sparkline
+  const now = Date.now() / 1000;
+  if (!health.length || now - health[health.length - 1][0] > 2) health.push([now, m.score]);
+  while (health.length > 180) health.shift();
+  $("kHealth").innerHTML = `${m.score}<small> %</small>`;
+  const hp = $("healthPill");
+  hp.className = "pill " + (m.score >= 90 ? "p-ok" : m.score >= 60 ? "p-warn" : "p-bad");
+  hp.textContent = m.score >= 90 ? "Excellent" : m.score >= 60 ? "Degraded" : "Critical";
+  drawSpark();
+
+  const bar = (el, parts) => { $(el).innerHTML = parts.map(([v, c]) => v ? `<i style="width:${v}%;background:${c}"></i>` : "").join(""); };
+  const nd = m.devices.length || 1, warn = m.devices.filter((d) => d.status === "warn").length;
+  $("kDevices").innerHTML = `${m.online}<small> / ${m.devices.length} online</small>`;
+  bar("devBar", [[(m.online - warn) / nd * 100, "var(--green)"], [warn / nd * 100, "var(--orange)"], [(m.devices.length - m.online) / nd * 100, "var(--red)"]]);
+  $("devSub").innerHTML = `<span><b class="ok">${m.online - warn}</b> healthy</span><span><b class="warn">${warn}</b> degraded</span><span><b class="bad">${m.devices.length - m.online}</b> offline</span>`;
+  const ns = m.sessTotal || 1;
+  $("kSessions").innerHTML = `${m.sessUp}<small> / ${m.sessTotal} established</small>`;
+  bar("sessBar", [[m.sessUp / ns * 100, "var(--blue)"], [(m.sessTotal - m.sessUp) / ns * 100, "var(--red)"]]);
+  $("sessSub").innerHTML = `<span>${m.links.length} links</span>${m.externals.length ? `<span>${m.externals.length} external peer${m.externals.length > 1 ? "s" : ""}</span>` : ""}`;
+
+  $("topoSub").textContent = `${m.devices.length} devices · ${m.links.length} links`;
+  $("topoTitle").textContent = `${m.links.filter((l) => l.up).length} of ${m.links.length} links connected`;
+  $("devCount").textContent = `${m.online} of ${m.devices.length} online`;
+
+  renderSymptoms(s.symptoms);
+  drawTopo($("topoMini"), m, 640, 360, false);
+  drawTopo($("topoBig"), m, 960, 600, true);
+  renderDevices(m);
+  renderDetail(m);
+  if (!inc.events.length) renderIncident();
+}
+function drawSpark() {
+  if (health.length < 2) { $("spark").innerHTML = ""; return; }
+  const t0 = health[0][0], t1 = health[health.length - 1][0] || t0 + 1;
+  const pts = health.map(([t, v]) => [((t - t0) / Math.max(t1 - t0, 1)) * 200, 32 - (v / 100) * 30]);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
+  $("spark").innerHTML = `<path class="f" d="${line}L200,34L0,34Z"/><path class="l" d="${line}"/>`;
+}
+
+const KIND = { bgp: ["p-warn", "BGP"], ospf: ["p-warn", "OSPF"], reach: ["p-bad", "Reachability"], dns: ["p-vio", "DNS"], path: ["p-info", "Path"] };
+const kindPill = (k) => { const [c, l] = KIND[k] || ["p-grey", k]; return `<span class="pill ${c}">${esc(l)}</span>`; };
+function renderSymptoms(list) {
+  $("symCount").textContent = list.length ? `${list.length} open` : "";
+  $("symptoms").innerHTML = list.length
+    ? list.slice(0, 40).map((x) => `<div class="sym">${kindPill(x.kind)}<span style="flex:1">${esc(x.text)}</span>${x.acknowledged ? '<span class="pill p-warn">Escalated</span>' : ""}</div>`).join("")
+    : `<div class="empty" style="padding:14px"><div class="ico">${icon("check")}</div><b>No active symptoms</b>Every probe is passing.</div>`;
+}
+
+// ---------- device illustration (generic 1U router) ----------
+function deviceSvg(x, y, w, d, big) {
+  const h = big ? 30 : 26, ports = 8, pw = big ? 7 : 6, gap = big ? 4 : 3.4;
+  const lit = d.up, total = Math.max(d.total, 1);
+  let p = "";
+  for (let i = 0; i < ports; i++) {
+    const px = x + w - 12 - (ports - i) * (pw + gap);
+    p += `<rect class="port ${i < Math.round(ports * lit / total) && d.reachable ? "lit" : ""}" x="${px}" y="${y + h / 2 - pw / 2}" width="${pw}" height="${pw}" rx="1.2"/>`;
+  }
+  return `<rect class="chassis" x="${x}" y="${y}" width="${w}" height="${h}" rx="5"/>
+    <rect class="face" x="${x + 4}" y="${y + 4}" width="${w - 8}" height="${h - 8}" rx="3"/>
+    <circle class="led" cx="${x + 13}" cy="${y + h / 2}" r="3.2"/>${p}`;
+}
+
+// ---------- topology ----------
+function layout(names, w, h) {
+  // Layered (hierarchical) layout when routers have a layer, ring layout otherwise.
+  const routers = state ? state.routers : {};
+  const layered = names.length && names.every((n) => routers[n] && routers[n].layer != null);
+  if (layered) {
+    const layers = [...new Set(names.map((n) => routers[n].layer))].sort((a, b) => a - b);
+    const pos = {}, top = h * 0.2, bottom = h * 0.78;
+    layers.forEach((L, li) => {
+      const row = names.filter((n) => routers[n].layer === L);
+      const y = layers.length > 1 ? top + (bottom - top) * li / (layers.length - 1) : h / 2;
+      row.forEach((n, i) => { pos[n] = [w * (i + 1) / (row.length + 1), y]; });
+    });
+    return pos;
+  }
+  const pos = {}, n = names.length, cx = w / 2, cy = h / 2 - 8;
+  names.forEach((name, i) => {
+    const a = -Math.PI * 3 / 4 + (2 * Math.PI * i) / Math.max(n, 1);
+    pos[name] = [cx + w * 0.3 * Math.cos(a) * 1.2, cy + h * 0.29 * Math.sin(a) * 1.2];
+  });
+  return pos;
+}
+function drawTopo(svg, m, w, h, big) {
+  const pos = layout(m.names, w, h), cx = w / 2, cy = h / 2;
+  let out = "";
+  for (const l of m.links) {
+    const [x1, y1] = pos[l.a], [x2, y2] = pos[l.b];
+    const d = `M${x1},${y1} L${x2},${y2}`, tip = Object.entries(l.ends).map(([r, i]) => `${r} ${i}`).join("\n");
+    out += `<path class="lk ${l.up ? "" : "down"}" d="${d}"/><path class="lk-hit" d="${d}"><title>${esc(tip)}</title></path>`;
+    if (big || !l.up) out += `<text class="lbl ${l.up ? "up" : "down"}" x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 7}">${l.up ? (l.kind === "ospf" ? "OSPF" : "eBGP") : "Down"}</text>`;
+  }
+  m.externals.forEach((e, i) => {
+    const [rx, ry] = pos[e.router] || [cx, cy];
+    const ang = Math.atan2(ry - cy, rx - cx) + (i % 2 ? 0.4 : -0.4) * Math.ceil(i / 2);
+    const dist = big ? 130 : 92, ex = rx + Math.cos(ang) * dist;
+    const ey = Math.max(big ? 34 : 26, ry + Math.sin(ang) * dist);  // keep it inside the canvas
+    const up = e.state.startsWith("Established");
+    out += `<path class="lk ext ${up ? "" : "down"}" d="M${rx},${ry} L${ex},${ey}"/>
+      <g class="ext"><circle cx="${ex}" cy="${ey}" r="${big ? 26 : 21}"/><text x="${ex}" y="${ey - 1}">AS${esc(e.asn ?? "?")}</text>
+      <text x="${ex}" y="${ey + 11}" style="font-weight:500;fill:var(--text-3);font-size:9px">external</text>
+      <title>${esc(`${e.neighbor} (AS${e.asn}) via ${e.router} ${e.proto}: ${e.state}`)}</title></g>`;
+  });
+  const W = big ? 150 : 124;
+  for (const d of m.devices) {
+    const [x, y] = pos[d.name];
+    out += `<g class="dv ${d.status} ${selected === d.name ? "sel" : ""}" data-dev="${esc(d.name)}">
+      ${deviceSvg(x - W / 2, y - 15, W, d, big)}
+      <text class="nm" x="${x}" y="${y + (big ? 34 : 30)}">${esc(d.name)}</text>
+      <text class="mt" x="${x}" y="${y + (big ? 49 : 44)}">AS${esc(d.asn ?? "")} · ${esc(d.loopback ?? "")}</text></g>`;
+  }
+  svg.innerHTML = out;
+  svg.querySelectorAll(".dv").forEach((g) => g.onclick = () => { selected = g.dataset.dev; go("topology"); renderState(state); });
+}
+const thumb = (d) => `<svg class="thumb" viewBox="0 0 68 44"><g class="dv ${d.status}">${deviceSvg(2, 9, 64, { ...d, reachable: d.reachable }, false)}</g></svg>`;
+const stTxt = (s) => `<span class="st ${STATUS[s][0]}"><span class="dot"></span>${STATUS[s][1]}</span>`;
+
+function renderDetail(m) {
+  const d = m.devices.find((x) => x.name === selected) || m.devices[0];
+  if (!d) { $("devDetail").innerHTML = ""; return; }
+  selected = d.name;
+  const sessions = Object.entries((state.sessions || {})[d.name] || {});
+  $("devDetail").innerHTML = `<div class="wh"><h3>${esc(d.name)}</h3><div class="grow"></div>${stTxt(d.status)}</div>
+    <div class="wb">
+      <svg viewBox="0 0 300 60" style="width:100%;height:auto;margin-bottom:6px"><g class="dv ${d.status}">${deviceSvg(10, 12, 280, d, true)}</g></svg>
+      <div class="kv"><span class="k">Model</span><span class="v">Linux router · BIRD</span></div>
+      ${d.role ? `<div class="kv"><span class="k">Role</span><span class="v" style="text-transform:capitalize">${esc(d.role)}</span></div>` : ""}
+      <div class="kv"><span class="k">ASN</span><span class="v">AS${esc(d.asn ?? "–")}</span></div>
+      <div class="kv"><span class="k">Loopback</span><span class="v mono">${esc(d.loopback ?? "–")}</span></div>
+      <div class="kv"><span class="k">Sessions</span><span class="v">${d.up} / ${d.total} established</span></div>
+      <div class="sect">Routing sessions</div>
+      ${sessions.map(([p, i]) => `<div class="kv"><span class="mono">${esc(p)}</span><span class="pill ${i.startsWith("Established") ? "p-ok" : "p-bad"}">${esc(i.split(" ")[0])}</span></div>`).join("") || '<div class="muted">None</div>'}
+      <div class="sect">Issues</div>
+      ${d.issues.map((x) => `<div class="sym">${kindPill(x.kind)}<span>${esc(x.text.slice(d.name.length + 2))}</span></div>`).join("") || '<div class="muted">No issue on this device.</div>'}
+    </div>`;
+}
+function renderDevices(m) {
+  const row = (d, full) => `<tr class="click" data-dev="${esc(d.name)}"><td><div class="dname">${thumb(d)}${esc(d.name)}</div></td>
+    <td>${stTxt(d.status)}</td>${full ? `<td>AS${esc(d.asn ?? "–")}</td><td class="mono">${esc(d.loopback ?? "–")}</td>` : ""}
+    <td>${d.up}/${d.total}</td><td>${d.issues.length ? `<span class="pill p-warn">${d.issues.length}</span>` : '<span class="muted">–</span>'}</td></tr>`;
+  $("devTable").innerHTML = m.devices.map((d) => row(d, true)).join("");
+  $("devMini").innerHTML = m.devices.map((d) => row(d, false)).join("");
+  document.querySelectorAll("tr[data-dev]").forEach((tr) => tr.onclick = () => { selected = tr.dataset.dev; go("topology"); renderState(state); });
+}
+
+// ---------- live incident ----------
+const EV = {
+  opened: ["alert", "bad"], model: ["cpu", "info"], think: ["brain", "info"], tool: ["term", "muted"], decision: ["hand", "warn"],
+  action: ["wrench", "warn"], pass: ["check", "ok"], fail: ["x", "bad"], committed: ["check", "ok"], rollback: ["undo", "bad"],
+  error: ["alert", "bad"], escalate: ["alert", "bad"],
+};
+const evRow = (e) => { const [ic, c] = EV[e.type] || ["alert", "muted"];
+  return `<div class="ev ${e.type === "think" ? "think" : ""}"><span class="tm">${hhmmss(e.ts)}</span><span class="ic ${c}">${icon(ic)}</span><div class="tx">${e.html}</div></div>`; };
+const stageTo = (n) => { if (n > inc.stage) inc.stage = n; };
+function renderIncident() {
+  const body = $("incidentBody");
+  if (!inc.events.length) {
+    body.innerHTML = `<div class="empty"><div class="ico">${icon("check")}</div><b>No incident in progress</b>netmedic checks every device every few seconds.</div>`;
+    return;
+  }
+  const steps = STAGES.map((t, i) => {
+    let c = i < inc.stage ? "done" : i === inc.stage ? (inc.active ? "cur" : "done") : "";
+    if (inc.failed && i === Math.min(inc.stage, STAGES.length - 1)) c = "fail";
+    return `<div class="sp ${c}"><div class="c"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="n">${t}</div></div>`;
+  }).join("");
+  const old = body.querySelector(".feed");
+  const stick = !old || old.scrollHeight - old.scrollTop - old.clientHeight < 40;
+  const open = new Set([...body.querySelectorAll("details[open]")].map((d) => d.dataset.id));
+  body.innerHTML = `<div class="steps">${steps}</div><div class="feed">${inc.events.map((e) => e.block ?? evRow(e)).join("")}</div>`;
+  body.querySelectorAll("details").forEach((d) => { if (open.has(d.dataset.id)) d.open = true; });
+  body.querySelectorAll("[data-approve]").forEach((b) => b.onclick = () => answer(+b.dataset.id, b.dataset.approve === "1"));
+  const feed = body.querySelector(".feed");
+  feed.scrollTop = stick ? feed.scrollHeight : old.scrollTop;
+}
+const push = (type, html, ts) => inc.events.push({ type, html, ts });
+const pushBlock = (html, key) => inc.events.push({ block: html, key });
+const riskPill = (r) => `<span class="pill ${r === "low" ? "p-ok" : r === "medium" ? "p-warn" : "p-bad"}">${esc(r)} risk</span>`;
+
+function diagnosisBlock(dx) {
+  const steps = dx.plan.map((p, i) => `<div class="pstep"><span class="num">${i + 1}</span><div><b>${esc(p.title)}</b> ${riskPill(p.risk)}
+      <div style="color:var(--text-2)">${esc(p.root_cause)}</div><code>${p.actions.map((a) => esc(JSON.stringify(a))).join("\n")}</code></div></div>`).join("");
+  return `<div class="box"><h4>${esc(dx.summary)}</h4><p><b>Root cause:</b> ${esc(dx.root_cause)}</p>
+    ${steps || '<p style="margin:0">No change needed — the network is healthy.</p>'}
+    ${dx.alternatives.length ? `<p style="margin:8px 0 0;font-size:12px">Considered, not applied: ${dx.alternatives.map((a) => esc(a.title)).join(" · ")}</p>` : ""}</div>`;
+}
+function approvalBlock(d, resolved) {
+  const r = d.remediation;
+  const acts = resolved == null
+    ? `<div class="acts"><button class="btn green" data-approve="1" data-id="${d.id}">${icon("check")}Approve</button>
+       <button class="btn red" data-approve="0" data-id="${d.id}">${icon("x")}Reject</button></div>`
+    : `<div style="margin-top:8px;font-weight:700" class="${resolved ? "ok" : "bad"}">${resolved ? "Approved" : "Rejected"}</div>`;
+  return `<div class="appr"><b>Approval required</b> — ${esc(r.title)} ${riskPill(r.risk)}<div style="color:var(--text-2);margin-top:4px">${esc(r.description)}</div>${acts}</div>`;
+}
+async function answer(id, approve) {
+  await fetch(`/api/approvals/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ approve }) });
+}
+
+let timerHandle = null;
+function startTimer() { clearInterval(timerHandle); timerHandle = setInterval(() => { $("timer").textContent = fmtDur(Date.now() / 1000 - inc.start); }, 500); }
+function stopTimer() { clearInterval(timerHandle); $("timer").textContent = fmtDur(inc.end - inc.start); }
+
+function toast(title, text, kind = "info") {
+  const ic = { ok: ["check", "var(--green-soft)", "var(--green)"], bad: ["alert", "var(--red-soft)", "var(--red)"],
+               warn: ["hand", "var(--orange-soft)", "var(--orange)"], info: ["check", "var(--blue-soft)", "var(--blue)"] }[kind];
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `<span class="ic" style="background:${ic[1]};color:${ic[2]}">${icon(ic[0])}</span><div><b>${esc(title)}</b><span>${esc(text)}</span></div>`;
+  $("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+
+function onEvent(ev) {
+  const d = ev.data, ts = ev.ts;
+  if (ev.kind === "state") { renderState(d); return; }
+  switch (ev.kind) {
+    case "incident_opened":
+      Object.assign(inc, { active: true, start: ts, end: null, stage: 0, failed: false, events: [], tools: {} });
+      push("opened", `<b>Incident detected</b><div style="color:var(--text-2);white-space:pre-wrap;margin-top:2px">${esc(d.text.replace(/^Automated detection at [0-9:]+\.\n?/, ""))}</div>`, ts);
+      startTimer(); $("navBadge").style.display = "block";
+      toast("Incident detected", "netmedic is investigating", "bad");
+      break;
+    case "model": push("model", `Model: <b>${esc(d.model)}</b>`, ts); break;
+    case "thinking": stageTo(1); push("think", esc(d.text), ts); break;
+    case "tool_call": {
+      stageTo(1);
+      const args = Object.entries(d.args).map(([k, v]) => `${k}=${v}`).join(", ");
+      const e = { type: "tool", ts };
+      e.render = (out) => `<details data-id="${esc(d.id)}"><summary>${esc(d.name)}(${esc(args)})${out == null ? '<span class="run">running…</span>' : ""}</summary><pre>${esc(out ?? "")}</pre></details>`;
+      e.html = e.render(null); inc.tools[d.id] = e; inc.events.push(e);
+      break;
+    }
+    case "tool_result": { const e = inc.tools[d.id]; if (e) e.html = e.render(d.output); break; }
+    case "diagnosis": stageTo(2); pushBlock(diagnosisBlock(d)); break;
+    case "approval_request":
+      pushBlock(approvalBlock(d), "appr-" + d.id); inc.events[inc.events.length - 1].req = d;
+      toast("Approval required", d.remediation.title, "warn");
+      break;
+    case "approval_resolved": { const e = inc.events.find((x) => x.key === "appr-" + d.id); if (e) e.block = approvalBlock(e.req, d.approved); break; }
+    case "decision": stageTo(3); push("decision", esc(d.text), ts); break;
+    case "action": stageTo(3); push("action", esc(d.text), ts); break;
+    case "check": push(d.ok ? "pass" : "fail", esc(d.text), ts); break;
+    case "committed": push("committed", `<b>${esc(d.text)}</b>`, ts); break;
+    case "rollback": push("rollback", `<b>${esc(d.text)}</b>`, ts); break;
+    case "error": push("error", esc(d.text), ts); break;
+    case "escalate": push("escalate", `<b>${esc(d.text)}</b>`, ts); inc.failed = true; break;
+    case "incident_closed": {
+      inc.active = false; inc.end = ts;
+      const ok = d.resolved, esc8 = d.escalated;
+      if (ok) inc.stage = STAGES.length; else inc.failed = true;
+      pushBlock(`<div class="result ${!ok ? "p-bad" : esc8 ? "p-warn" : "p-ok"}">${icon(!ok ? "x" : esc8 ? "alert" : "check")}${esc(d.status)} in ${fmtDur(ts - inc.start)}</div>`);
+      stopTimer(); $("navBadge").style.display = "none";
+      toast(!ok ? "Incident not resolved" : esc8 ? "Escalated to a human" : "Incident resolved",
+            `${d.status.toLowerCase()} in ${fmtDur(ts - inc.start)}`, !ok ? "bad" : esc8 ? "warn" : "ok");
+      loadReports();
+      break;
+    }
+    default: return;
+  }
+  renderIncident();
+}
+
+// ---------- reports ----------
+function whenOf(name) { const m = name.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/); return m ? `${m[3]}/${m[2]} ${m[4]}:${m[5]}` : name; }
+function tsOf(name) { const m = name.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() / 1000 : 0; }
+function statusPill(s) {
+  const c = /ESCALATED/.test(s) || /^PARTIAL/.test(s) ? "p-warn" : /^(RESOLVED|NO ACTION)/.test(s) ? "p-ok" : "p-bad";
+  return `<span class="pill ${c}">${esc(s[0] + s.slice(1).toLowerCase())}</span>`;
+}
+async function loadReports() {
+  try { reports = await (await fetch("/api/reports")).json(); } catch { return; }
+  const day = reports.filter((r) => Date.now() / 1000 - tsOf(r.name) < 86400);
+  const resolved = day.filter((r) => /^(RESOLVED|NO ACTION|ESCALATED)/.test(r.status));
+  const timed = resolved.filter((r) => r.duration != null);
+  $("kIncidents").innerHTML = `${day.length}<small> handled</small>`;
+  $("kMttr").textContent = timed.length ? fmtDur(timed.reduce((a, r) => a + r.duration, 0) / timed.length) : "–";
+  $("kRate").textContent = day.length ? `${Math.round(resolved.length / day.length * 100)}%` : "–";
+  $("recent").innerHTML = reports.slice(0, 5).map((r) => `<tr class="click" data-name="${esc(r.name)}"><td>${whenOf(r.name)}</td>
+      <td style="color:var(--text-2)">${esc(r.summary)}</td><td>${fmtDur(r.duration)}</td><td>${statusPill(r.status)}</td></tr>`).join("")
+    || `<tr><td colspan="4" class="muted">No incident yet.</td></tr>`;
+  $("recent").querySelectorAll("tr[data-name]").forEach((tr) => tr.onclick = () => { go("incidents"); openReport(tr.dataset.name); });
+  $("incList").innerHTML = reports.map((r) => `<div class="item" data-name="${esc(r.name)}"><div class="r1"><span>${whenOf(r.name)}</span>${statusPill(r.status)}</div>
+      <div class="r2">${esc(r.summary)}</div>${r.duration != null ? `<div class="r2">Handled in ${fmtDur(r.duration)}</div>` : ""}</div>`).join("")
+    || `<div class="empty">No incident yet.</div>`;
+  $("incList").querySelectorAll(".item").forEach((el) => el.onclick = () => openReport(el.dataset.name));
+}
+async function openReport(name) {
+  document.querySelectorAll(".item").forEach((el) => el.classList.toggle("sel", el.dataset.name === name));
+  const text = await (await fetch(`/api/reports/${name}`)).text();
+  $("reportView").innerHTML = window.marked ? marked.parse(esc(text)) : `<pre style="white-space:pre-wrap">${esc(text)}</pre>`;
+}
+
+// ---------- controls ----------
+document.querySelectorAll("#mode button").forEach((b) => b.onclick = async () => {
+  await fetch("/api/mode", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: b.dataset.mode }) });
+  if (state) { state.mode = b.dataset.mode; renderState(state); }
+  toast("Remediation mode", b.dataset.mode === "auto" ? "Low-risk fixes are applied automatically" : "Every fix waits for your approval");
+});
+$("reportBtn").onclick = () => { $("reportModal").classList.add("on"); setTimeout(() => $("reportText").focus(), 50); };
+document.querySelectorAll("[data-close]").forEach((b) => b.onclick = () => $("reportModal").classList.remove("on"));
+$("reportSend").onclick = async () => {
+  const summary = $("reportText").value.trim();
+  if (!summary) return;
+  await fetch("/api/alerts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ summary }) });
+  $("reportText").value = ""; $("reportModal").classList.remove("on");
+  toast("Issue reported", "netmedic will investigate it on the next check");
+};
+
+// ---------- live stream ----------
+function connect() {
+  const es = new EventSource("/api/events");
+  es.onmessage = (m) => onEvent(JSON.parse(m.data));
+  es.onerror = () => { $("status").className = "status warn"; $("statusText").textContent = "Reconnecting…"; };
+}
+renderIncident();
+connect();
+loadReports();
+</script>
+</body>
+</html>

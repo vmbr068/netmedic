@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,8 +21,12 @@ class CommandResult:
     stdout: str
     stderr: str
 
-    def as_text(self, limit: int = 6000) -> str:
-        out = self.stdout if len(self.stdout) <= limit else self.stdout[:limit] + "\n…[truncated]"
+    def as_text(self, limit: int = 4000) -> str:
+        # Every token sent to the model costs: drop banners and blank runs, cap the size.
+        out = re.sub(r"^BIRD [0-9.]+ ready\.\n", "", self.stdout)
+        out = re.sub(r"\n{3,}", "\n\n", out).strip()
+        if len(out) > limit:
+            out = out[:limit] + f"\n…[truncated {len(out) - limit} chars]"
         text = f"$ {self.command}\n(exit {self.exit_status})\n{out}"
         if self.stderr.strip():
             text += f"\n[stderr]\n{self.stderr[:2000]}"

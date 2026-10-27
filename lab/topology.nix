@@ -10,6 +10,12 @@
 #     link id = 10*low + high, subnet 172.16.<link id>.0/30, .1 = lower id, .2 = higher id
 # Each router owns loopback 10.0.255.<id>/32 and a "customer" prefix 10.100.<id>.0/24.
 {
+  notes = ''
+    Four routers in a ring, one eBGP session per link (r1 AS65001 ... r4 AS65004).
+    Each router announces its loopback 10.0.255.<id>/32 and 10.100.<id>.0/24. r4 hosts DNS
+    (unbound, app.lab). Agent-managed BIRD file: /var/lib/netagent/bgp.conf.
+  '';
+
   routers = {
     r1 = { id = 1; asn = 65001; };
     r2 = { id = 2; asn = 65002; };
