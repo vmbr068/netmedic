@@ -77,10 +77,41 @@ Alert → Diagnosis (tools + runbooks) → Ranked hypotheses (with evidence)
 
 ## Phase 2 Extras (Mon Nov 2, after MVP)
 
+- **Rack Vision (headline feature, see below)**
 - Open weights backend: Muse Spark Open / Glimmer on DGX Spark or Baseten → "configs never leave your infra" + $10K bonus
 - Voice (Muse Voice Transcribe): on-call engineer talks to the agent
 - Vision (Muse Spark): agent reads topology diagrams / dashboard screenshots
 - Slack + Mail notifiers, extra failure scenarios
+
+### Rack Vision — point your phone at the rack
+
+The on-site technician opens the netmedic web page on their phone, points the camera at a rack /
+switch / patch panel, and the agent finds physical problems by **cross-checking what it sees with
+live data from the devices**.
+
+```
+Phone camera (web page, <input capture>, no app)
+  → Muse Spark vision: identify devices, port numbers, cables, link LEDs, labels
+  → SAM 3.1: segment each port / cable / LED for precise localisation + annotated overlay
+  → agent tools fetch ground truth:
+       interface state & counters, switch running-config, LLDP neighbors,
+       expected cabling map (cabling.yaml: "sw1 port 12 ↔ r3 to-r4")
+  → cross-check → findings, drawn on the photo:
+       "fibre plugged in port 14, config + cabling map expect it in port 12"
+       "port 7 LED off but interface admin-up in config → cable/SFP issue"
+       "unlabelled cable in port 3: LLDP says it goes to r2"
+  → feeds the normal incident pipeline (diagnosis → remediation → report)
+```
+
+- **Why it matters:** many outages are physical (wrong port, unseated SFP, bent fibre); remote
+  agents are blind to them. This closes the loop between the NOC and the person in the datacenter.
+- **Meta tooling:** Muse Spark multimodal + SAM 3.1 + (optional) Muse Voice Transcribe for
+  hands-free questions — goes well beyond a basic text integration (25% of the score).
+- **New tools:** `analyze_rack_photo(image)`, `segment_ports(image)`, `switch_config(device)`,
+  `lldp_neighbors(device)`, `cabling_map(device)`.
+- **Demo:** real photo of a physical switch / patch panel + `cabling.yaml` mapping physical ports to
+  lab links → pull a cable (or use `chaos.sh link-down`) → photo → agent points at the exact port.
+- **Open question:** physical hardware available for the demo (switch, patch panel, homelab rack)?
 
 ## Schedule
 
@@ -99,7 +130,7 @@ Alert → Diagnosis (tools + runbooks) → Ranked hypotheses (with evidence)
 
 | Day | Goal |
 |---|---|
-| **Mon Nov 2** | Phase 2 extras (open weights first, then voice / vision, Slack / Mail, more scenarios) |
+| **Mon Nov 2** | Phase 2 extras: **Rack Vision** (phone photo + SAM 3.1 + config cross-check) first, then open weights, voice, Slack / Mail, more scenarios |
 | **Tue Nov 3** | Freeze features, final README (clearly state what was built during the hackathon), rehearse demo, record 3-min video. Last day for submission support questions |
 | **Wed Nov 4** | Final fixes, X post, **submit before noon**; the rest of the day is buffer |
 

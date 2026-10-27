@@ -93,7 +93,8 @@ in
       "10-mgmt" = {
         matchConfig.Name = "mgmt";
         networkConfig.DHCP = "ipv4";
-        dhcpV4Config.UseDNS = false;
+        # SSH only: no default route, so lab traffic can never leak to the host network
+        dhcpV4Config = { UseDNS = false; UseRoutes = false; UseGateway = false; };
       };
       "30-lo-svc" = {
         matchConfig.Name = "lo-svc";
@@ -105,6 +106,9 @@ in
       networkConfig.LinkLocalAddressing = "no";
     }) myLinks);
   };
+
+  # Plain /etc/resolv.conf: no resolver cache hiding DNS failures or recoveries.
+  services.resolved.enable = false;
 
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
 
@@ -149,15 +153,20 @@ in
 
   environment.etc."netagent/baseline/bgp.conf".text = bgpBaseline;
 
-  # Seed the agent-managed config from the baseline at boot.
-  systemd.tmpfiles.rules = [
-    "d /var/lib/netagent 0755 root bird -"
-    "C /var/lib/netagent/bgp.conf 0644 root bird - /etc/netagent/baseline/bgp.conf"
-  ];
-  systemd.services.bird = {
-    after = [ "systemd-tmpfiles-setup.service" ];
-    serviceConfig.ReadOnlyPaths = [ "/var/lib/netagent" ];
+  # Seed the agent-managed config from the baseline at boot, as a real writable file
+  # (/etc entries are symlinks into the read-only store).
+  systemd.services.netagent-seed = {
+    wantedBy = [ "multi-user.target" ];
+    before = [ "bird.service" ];
+    requiredBy = [ "bird.service" ];
+    serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+    script = ''
+      install -d -m 0755 -g bird /var/lib/netagent
+      [ -f /var/lib/netagent/bgp.conf ] && [ ! -L /var/lib/netagent/bgp.conf ] || \
+        install -m 0644 -g bird /etc/netagent/baseline/bgp.conf /var/lib/netagent/bgp.conf
+    '';
   };
+  systemd.services.bird.serviceConfig.ReadOnlyPaths = [ "/var/lib/netagent" ];
 
   services.unbound = lib.mkIf (me.dns or false) {
     enable = true;
@@ -179,9 +188,9 @@ in
   environment.systemPackages = with pkgs; [
     (writeShellScriptBin "lab-reset" ''
       set -e
-      cp /etc/netagent/baseline/bgp.conf /var/lib/netagent/bgp.conf
+      install -m 0644 -g bird /etc/netagent/baseline/bgp.conf /var/lib/netagent/bgp.conf
       rm -f /var/lib/netagent/chaos-*.conf
-      nft delete table inet chaos 2>/dev/null || true
+      nft delete table inet hardening 2>/dev/null || true
       for i in /sys/class/net/to-*; do
         ip link set "$(basename "$i")" mtu 1500 up
       done
