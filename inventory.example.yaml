@@ -1,0 +1,9 @@
+# Lab routers reachable over SSH (local QEMU lab: lab/lab.sh up). Copy to inventory.yaml.
+ssh:
+  user: root
+  key: lab/state/id_ed25519
+routers:
+  r1: { host: 127.0.0.1, port: 2221, asn: 65001 }
+  r2: { host: 127.0.0.1, port: 2222, asn: 65002 }
+  r3: { host: 127.0.0.1, port: 2223, asn: 65003 }
+  r4: { host: 127.0.0.1, port: 2224, asn: 65004 }

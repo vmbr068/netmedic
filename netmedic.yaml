@@ -1,0 +1,8 @@
+# netmedic configuration (non-secret). Secrets live in secrets.yaml (sops-encrypted).
+model:
+  api_base: https://api.meta.ai/v1
+  name: muse-spark-1.3
+  reasoning_effort: null # minimal | low | medium | high | xhigh
+
+inventory: inventory.yaml
+runbooks: runbooks

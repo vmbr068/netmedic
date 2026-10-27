@@ -1,0 +1,19 @@
+id: bgp-session-down
+title: BGP session not Established
+triggers:
+  - a BGP protocol is not in state Established
+  - routes learned from a peer disappeared
+steps:
+  - Check the session state and "Last error" on BOTH ends (bird_protocol_detail).
+  - Verify L1/L2 - is the interface toward the neighbor up, with the expected MTU (interfaces)?
+  - Verify L3 - can the router ping the neighbor address (ping)?
+  - Verify transport - is TCP 179 reachable, any firewall drop (tcp_check, firewall_rules)?
+  - Compare configuration on both ends - neighbor IP, local AS, remote AS, passwords, filters (bird_config).
+  - Read BIRD logs around the failure time for explicit errors (bird_logs).
+  - If the session is Established but routes are missing, inspect import/export filters and route counts.
+known_causes:
+  - '"Bad peer AS" in Last error -> remote AS mismatch in config'
+  - 'State Active/Connect + ping fails -> link down or addressing issue'
+  - 'Ping works, TCP 179 closed -> firewall rule or BIRD not listening'
+  - 'Hold timer expired with big pings failing -> MTU mismatch'
+  - 'Established, 0 routes imported -> import filter rejects everything'
