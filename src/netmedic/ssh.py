@@ -51,11 +51,13 @@ class RouterPool:
                 self._conns[router] = conn
             return conn
 
-    async def run(self, router: str, argv: list[str], timeout: float | None = None) -> CommandResult:
+    async def run(
+        self, router: str, argv: list[str], timeout: float | None = None, input: str | None = None
+    ) -> CommandResult:
         command = shlex.join(argv)
         try:
             conn = await self._conn(router)
-            res = await conn.run(command, check=False, timeout=timeout or self.timeout)
+            res = await conn.run(command, check=False, timeout=timeout or self.timeout, input=input)
             return CommandResult(router, command, res.exit_status or 0, str(res.stdout), str(res.stderr))
         except (OSError, asyncssh.Error, asyncio.TimeoutError) as e:
             return CommandResult(router, command, -1, "", f"{type(e).__name__}: {e}")

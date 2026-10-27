@@ -11,6 +11,7 @@ declare -A DESC=(
   [link-down]="r3: interface to-r4 administratively down -> BGP r3-r4 down, traffic reroutes"
   [dns-firewall]="r4: nftables rule drops DNS -> lab names stop resolving everywhere"
   [dns-service]="r4: unbound stopped -> lab names stop resolving everywhere"
+  [meltdown]="bgp-peer-as + link-down + dns-service at once -> ring split in two islands, DNS dead"
 )
 
 case "${1:-list}" in
@@ -34,6 +35,8 @@ table inet hardening {
 EOF" ;;
   dns-service)
     on r4 "systemctl stop unbound" ;;
+  meltdown)
+    for s in bgp-peer-as link-down dns-service; do "$0" "$s" >/dev/null; done ;;
   reset)
     for r in r1 r2 r3 r4; do on "$r" "lab-reset >/dev/null; systemctl start unbound 2>/dev/null || true" & done
     wait ;;

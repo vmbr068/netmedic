@@ -30,6 +30,20 @@ def load_secrets(path: Path = SECRETS_PATH) -> dict:
     return json.loads(out)
 
 
+class WatchConfig(BaseModel):
+    interval: float = 5.0
+    confirm_polls: int = 2
+    mode: str = "auto"
+    max_attempts: int = 2
+    settle: float = 20.0
+    dns_names: list[str] = []
+
+
+class ServerConfig(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 8080
+
+
 class Settings(BaseModel):
     api_key: str = ""
     api_base: str = "https://api.meta.ai/v1"
@@ -37,6 +51,8 @@ class Settings(BaseModel):
     reasoning_effort: str | None = None
     inventory_path: Path = Path("inventory.yaml")
     runbooks_dir: Path = Path("runbooks")
+    watch: WatchConfig = Field(default_factory=WatchConfig)
+    server: ServerConfig = Field(default_factory=ServerConfig)
 
     @classmethod
     def load(cls, with_secrets: bool = True) -> Settings:
@@ -53,6 +69,8 @@ class Settings(BaseModel):
             reasoning_effort=model.get("reasoning_effort"),
             inventory_path=Path(raw.get("inventory", "inventory.yaml")),
             runbooks_dir=Path(raw.get("runbooks", "runbooks")),
+            watch=WatchConfig(**(raw.get("watch") or {})),
+            server=ServerConfig(**(raw.get("server") or {})),
         )
 
 
@@ -67,6 +85,7 @@ class Router(BaseModel):
     host: str
     asn: int | None = None
     port: int | None = None
+    loopback: str | None = None
 
 
 class Inventory(BaseModel):

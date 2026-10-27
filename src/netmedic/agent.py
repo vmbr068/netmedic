@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
 from typing import Any
 
 from openai import AsyncOpenAI
 
 from .config import Inventory, Settings
+from .events import Event, EventSink, noop_sink
 from .models import DIAGNOSIS_TOOL, Diagnosis
 from .runbooks import Runbook
 from .tools import Toolbox
@@ -26,8 +24,28 @@ Rules:
 - Run independent checks in parallel (several tool calls in one turn).
 - Follow the matching runbook when one applies, but deviate when evidence points elsewhere.
 - Stop as soon as the root cause is proven; do not run redundant commands.
-- Remediations must be concrete, minimal and reversible (what to change, on which router).
 - Finish by calling submit_diagnosis exactly once.
+
+Remediations:
+- You cannot change anything yourself. Each remediation lists typed actions that netmedic applies
+  safely (backup, BIRD configure check + timeout, automatic rollback) and typed checks it runs to
+  prove the fix. If any check fails, everything is rolled back.
+- Keep actions minimal: fix the root cause only, on the router where it lives.
+- edit_bird_config only touches /var/lib/netagent/<file>; `find` must be copied verbatim from the
+  bird_config output (exact whitespace) and occur exactly once.
+- For nftables, use rule handles shown by firewall_rules; never delete the nixos-fw table.
+- Large outages often have SEVERAL independent root causes at once. Account for every symptom:
+  keep investigating until each one is explained, then put one fix per root cause in `plan`.
+  All plan steps are applied in order in a single pass, each verified on its own; a failed step is
+  rolled back alone, the others are kept.
+- Each step's checks must only depend on that step and the steps before it (a ping across a link
+  fixed by a later step would fail). Order the plan accordingly: transport/links first, then
+  routing, then services.
+- Checks must prove the symptom fixed by that step is gone (session Established, route present via
+  the expected protocol, ping, DNS resolution), on the affected routers.
+- Put other options you considered in `alternatives` (never applied).
+- If the symptoms have already cleared (e.g. routing reconverging after a recent change) and no
+  root cause remains, say so and submit an empty plan: never change a healthy network.
 
 Network inventory:
 {inventory}
@@ -37,20 +55,6 @@ Runbooks:
 """
 
 
-@dataclass
-class Event:
-    kind: str  # thinking | tool_call | tool_result | diagnosis | error
-    data: dict[str, Any]
-    ts: float = field(default_factory=time.time)
-
-
-EventSink = Callable[[Event], Awaitable[None]]
-
-
-async def _noop(_: Event) -> None:
-    pass
-
-
 class Agent:
     def __init__(
         self,
@@ -58,7 +62,7 @@ class Agent:
         inventory: Inventory,
         toolbox: Toolbox,
         runbooks: list[Runbook],
-        on_event: EventSink = _noop,
+        on_event: EventSink = noop_sink,
         max_steps: int = 20,
     ):
         self.settings = settings

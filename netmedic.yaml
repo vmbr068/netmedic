@@ -6,3 +6,17 @@ model:
 
 inventory: inventory.yaml
 runbooks: runbooks
+
+# Automatic detection (netmedic watch)
+watch:
+  interval: 5          # seconds between probes
+  confirm_polls: 2     # a symptom must persist this many probes before opening an incident
+  mode: auto           # auto | approval
+  max_attempts: 2      # per symptom set, then escalate to a human
+  settle: 20           # seconds to let routing reconverge after an incident
+  dns_names: [app.lab]
+
+# Webhook / API (POST /api/alerts)
+server:
+  host: 127.0.0.1
+  port: 8080

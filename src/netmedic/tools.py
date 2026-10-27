@@ -159,9 +159,9 @@ DIAGNOSTIC_TOOLS: list[Tool] = [
     ),
     Tool(
         "firewall_rules",
-        "Current nftables ruleset (to spot dropped BGP/ICMP/DNS traffic).",
+        "Current nftables ruleset with rule handles (to spot dropped BGP/ICMP/DNS traffic).",
         _params(),
-        lambda a: ["nft", "list", "ruleset"],
+        lambda a: ["nft", "-a", "list", "ruleset"],
     ),
 ]
 

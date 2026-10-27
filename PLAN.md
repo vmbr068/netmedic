@@ -158,10 +158,12 @@ Phone camera (web page, <input capture>, no app)
 - Agent loop with 12 validated read-only tools + `submit_diagnosis` (structured output)
 - First runbook: `bgp-session-down`
 - ✅ Agent diagnosed an injected wrong-peer-AS fault on its own in ~14 s with correct root cause and evidence
+- Chaos script (`lab/chaos.sh`, 5 scenarios + reset)
+- ✅ Safe remediation (pulled forward from Wed): typed actions + typed checks, BIRD `configure check` → `configure timeout` → verify → `confirm` | rollback, `netmedic fix --mode approval|auto`, Markdown incident reports in `reports/`
+- ✅ `fix --mode auto` resolved bgp-peer-as (6 s), link-down (5 s, from a vague latency alert) and dns-firewall autonomously; executor tested on wrong fix (rolled back) and invalid config (rejected)
 
 ### Next (Wed Oct 28)
-- Detection: watcher (BGP state / loopback reachability / DNS) + `POST /api/alerts` webhook
-- Remediation: typed actions (`edit_bird_config`, `set_interface`, `remove_firewall_rule`, `restart_service`)
-- Safe apply: backup → `configure check` → `configure timeout` → verify → `confirm` | `undo`
-- Modes: `approval` (default) / `auto` (low risk only)
-- Chaos script with 3 scenarios
+- ✅ Detection (pulled forward): `netmedic watch` probes BGP, loopback reachability, DNS and best-path drift vs a learned baseline every 5 s; 2-poll confirmation, 20 s settle after incidents, max attempts then escalation; `POST /api/alerts` (Alertmanager or generic) + `GET /api/status`. link-down injected → detected and fixed autonomously in 51 s; fake alert on healthy network → "no remediation"
+- ✅ Multi-root-cause plans: diagnosis = ordered plan (one fix per independent root cause, each verified/rolled back on its own) + alternatives. `chaos.sh meltdown` (3 simultaneous faults, ring split in two) fixed in ONE incident, 116 s, 47 tool calls (was 3 incidents, 325 s, 118 calls)
+
+- Test prefix-filter + dns-service end to end; then web UI work can start early
