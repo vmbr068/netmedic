@@ -14,7 +14,8 @@ class EditBirdConfig(BaseModel):
 
     type: Literal["edit_bird_config"] = "edit_bird_config"
     router: str
-    file: str = Field("bgp.conf", description="File name inside /var/lib/netagent/")
+    file: str = Field(description="File name inside /var/lib/netagent/, exactly as shown by bird_config "
+                      "(e.g. bgp.conf or 30-bgp.conf)")
     find: str = Field(description="Exact text to replace; must occur exactly once in the file")
     replace: str
 
@@ -85,6 +86,15 @@ class RoutePresent(BaseModel):
     protocol: str | None = Field(None, description="Expected source protocol of the best route")
 
 
+class RouteExported(BaseModel):
+    """The prefix is announced to a BGP neighbour (after the export filter)."""
+
+    type: Literal["route_exported"] = "route_exported"
+    router: str
+    protocol: str
+    prefix: str
+
+
 class PingOk(BaseModel):
     type: Literal["ping_ok"] = "ping_ok"
     router: str
@@ -97,7 +107,7 @@ class DnsResolves(BaseModel):
     name: str
 
 
-Check = Annotated[Union[BgpEstablished, RoutePresent, PingOk, DnsResolves], Field(discriminator="type")]
+Check = Annotated[Union[BgpEstablished, RoutePresent, RouteExported, PingOk, DnsResolves], Field(discriminator="type")]
 
 # --- Diagnosis --------------------------------------------------------------------------------
 

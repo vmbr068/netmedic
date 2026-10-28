@@ -11,7 +11,7 @@
     {
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
-          packages = [ pkgs.python312 pkgs.uv pkgs.openssh pkgs.sops ];
+          packages = [ pkgs.python312 pkgs.uv pkgs.openssh pkgs.sops pkgs.nodejs_22 ];
           env.UV_PYTHON_DOWNLOADS = "never";
           env.UV_PYTHON = "${pkgs.python312}/bin/python3";
         };

@@ -11,10 +11,13 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse, StreamingResponse)
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .approvals import ApprovalBroker
+from .events import Event
 from .hub import EventHub
+from .vision import RackVision, load_cabling, network_context
 from .watcher import Watcher
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -60,6 +63,7 @@ def create_app(
     reports_dir: Path = Path("reports"),
     token: str | None = None,
     ca_cert: Path | None = None,
+    vision: RackVision | None = None,
 ) -> FastAPI:
     """`token`: if set, required for everything except /ca.crt — via ?token= on the first visit
     (then a cookie, so EventSource works), a cookie, or an `Authorization: Bearer` header."""
@@ -92,6 +96,51 @@ def create_app(
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
         return FileResponse(WEB_DIR / "index.html")
+
+    @app.get("/vision", include_in_schema=False)
+    async def vision_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "vision.html")
+
+    @app.get("/favicon.svg", include_in_schema=False)
+    async def favicon() -> FileResponse:
+        return FileResponse(WEB_DIR / "favicon.svg")
+
+    # Built by `npm run build` in frontend/ (React + shadcn/ui), shipped in the package.
+    app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets", check_dir=False), name="assets")
+
+    async def _image(request: Request) -> tuple[bytes, str]:
+        if vision is None:
+            raise HTTPException(503, "Rack Vision is not enabled")
+        body = await request.body()
+        if not body or len(body) > 8_000_000:
+            raise HTTPException(400, "send one JPEG/PNG image (max 8 MB) as the request body")
+        mime = request.headers.get("content-type", "image/jpeg").split(";")[0]
+        if mime not in ("image/jpeg", "image/png", "image/webp"):
+            raise HTTPException(415, "image/jpeg, image/png or image/webp expected")
+        return body, mime
+
+    @app.post("/api/vision/ports")
+    async def vision_ports(request: Request) -> dict[str, Any]:
+        """Fast pass (SAM 3.1): port boxes for the live overlay."""
+        image, mime = await _image(request)
+        return await vision.ports(image, mime)
+
+    @app.post("/api/vision/trace")
+    async def vision_trace(request: Request, x: float, y: float, plugged: bool = False) -> dict[str, Any]:
+        """Follow the cable plugged at the tapped point (x, y normalised to 0..1)."""
+        if not (0 <= x <= 1 and 0 <= y <= 1):
+            raise HTTPException(400, "x and y must be between 0 and 1")
+        image, mime = await _image(request)
+        return await vision.trace(image, x, y, mime, plugged)
+
+    @app.post("/api/vision/scan")
+    async def vision_scan(request: Request) -> dict[str, Any]:
+        """Deep pass (Muse Spark vision + SAM 3.1), cross-checked with the live network state."""
+        image, mime = await _image(request)
+        result = await vision.scan(image, network_context(watcher.snapshot(), load_cabling()), mime)
+        await hub.publish(Event("vision", {"text": f"Rack Vision: {result['summary']}",
+                                           "findings": len(result["findings"])}))
+        return result
 
     @app.get("/api/events")
     async def events() -> StreamingResponse:

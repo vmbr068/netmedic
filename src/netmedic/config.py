@@ -64,8 +64,8 @@ class Settings(BaseModel):
     tiers: list[ModelTier] = Field(default_factory=lambda: list(DEFAULT_TIERS))
     # USD per 1M tokens: [input, cached input, output]
     prices: dict[str, list[float]] = {}
-    api_max_retries: int = 5
-    api_timeout: float = 120.0
+    api_max_retries: int = 3
+    api_timeout: float = 45.0
     incident_timeout: float = 420.0
     inventory_path: Path = Path("inventory.yaml")
     runbooks_dir: Path = Path("runbooks")
@@ -98,8 +98,8 @@ class Settings(BaseModel):
             api_base=model.get("api_base", cls.model_fields["api_base"].default),
             tiers=[ModelTier(**t) for t in model.get("tiers", [])] or list(DEFAULT_TIERS),
             prices=model.get("prices", {}),
-            api_max_retries=model.get("max_retries", 5),
-            api_timeout=model.get("timeout", 120.0),
+            api_max_retries=model.get("max_retries", 3),
+            api_timeout=model.get("timeout", 45.0),
             incident_timeout=raw.get("incident_timeout", 420.0),
             inventory_path=Path(os.environ.get("NETMEDIC_INVENTORY") or raw.get("inventory", "inventory.yaml")),
             runbooks_dir=Path(raw.get("runbooks", "runbooks")),

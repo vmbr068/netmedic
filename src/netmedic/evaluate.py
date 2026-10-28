@@ -49,7 +49,9 @@ class RunResult:
     models: list[str] = field(default_factory=list)
     escalations: int = 0
     rollbacks: int = 0
+    max_llm_latency: float = 0.0
     error: str = ""
+    timeline: list[str] = field(default_factory=list)  # for post-mortems of failed runs
 
 
 async def _chaos(*args: str) -> None:
@@ -80,6 +82,9 @@ async def run_one(settings: Settings, inventory: Inventory, pool: RouterPool, sc
 
     async def sink(event: Event) -> None:
         d = event.data
+        if event.kind in ("incident_opened", "diagnosis", "incident_closed", "escalate", "rollback", "error"):
+            text = d.get("summary") if event.kind == "diagnosis" else d.get("text", "")
+            result.timeline.append(f"+{event.ts - t0:.0f}s {event.kind}: {str(text)[:400]}")
         if event.kind == "incident_opened":
             result.incidents += 1
             if result.detect_s is None:
@@ -90,6 +95,7 @@ async def run_one(settings: Settings, inventory: Inventory, pool: RouterPool, sc
             for k in ("llm_calls", "tool_calls", "prompt_tokens", "cached_tokens", "completion_tokens"):
                 setattr(result, k, getattr(result, k) + d.get(k, 0))
             result.cost_usd += d.get("cost_usd") or 0.0
+            result.max_llm_latency = max(result.max_llm_latency, d.get("max_llm_latency") or 0.0)
             result.models.append(d.get("model", "?"))
         elif event.kind == "escalate":
             result.escalations += 1
@@ -114,7 +120,10 @@ async def run_one(settings: Settings, inventory: Inventory, pool: RouterPool, sc
         await _chaos(scenario)
         while time.time() - t0 < budget:
             await asyncio.sleep(1)
-            healthy_now = not watcher.symptoms and not watcher.busy
+            # Healthy = nothing left that netmedic should still act on: either no symptom, or only
+            # symptoms it acknowledged as outside its control (e.g. a provider outage, escalated).
+            pending = [s for s in watcher.symptoms if s.key not in watcher.acknowledged]
+            healthy_now = not pending and not watcher.busy
             if result.incidents and healthy_now and result.statuses:
                 result.success = True
                 result.resolve_s = round(time.time() - t0, 1)
@@ -173,7 +182,10 @@ def render_markdown(rows: list[dict], results: list[RunResult], model: str) -> s
     failures = [r for r in results if not r.success]
     if failures:
         lines += ["", "## Failures"]
-        lines += [f"- {r.scenario} #{r.run}: {r.error or ', '.join(r.statuses)}" for r in failures]
+        for r in failures:
+            lines.append(f"- {r.scenario} #{r.run}: {r.error or ', '.join(r.statuses)} "
+                         f"(max LLM call {r.max_llm_latency}s)")
+            lines += [f"  - {t}" for t in r.timeline]
     return "\n".join(lines) + "\n"
 
 

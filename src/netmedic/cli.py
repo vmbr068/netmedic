@@ -133,6 +133,7 @@ def fix(
 def watch(
     mode: Mode = typer.Option(None, help="Override watch.mode from netmedic.yaml"),
     lan: bool = typer.Option(False, help="Serve on the LAN over HTTPS with an access token (for the phone)"),
+    ui_only: bool = typer.Option(False, help="Serve the web UI and Rack Vision only: no probing, no remediation"),
 ) -> None:
     """Monitor the network continuously; detect, diagnose and fix incidents automatically.
     Serves the web UI and the API (POST /api/alerts, GET /api/status, GET /api/events)."""
@@ -171,8 +172,10 @@ def watch(
             host, ssl = "0.0.0.0", {"ssl_certfile": str(cert), "ssl_keyfile": str(key)}
             token = load_secrets().get("server", {}).get("token") or pysecrets.token_urlsafe(18)
 
+        from .vision import RackVision
+
         server = uvicorn.Server(uvicorn.Config(
-            create_app(watcher, hub, broker, token=token, ca_cert=ca),
+            create_app(watcher, hub, broker, token=token, ca_cert=ca, vision=RackVision(settings)),
             host=host, port=port, log_level="warning", **ssl,
         ))
         if lan:
@@ -186,8 +189,10 @@ def watch(
             segno.make(url, error="m").terminal(compact=True)
         else:
             console.print(f"[bold blue]web[/] http://{host}:{port}  (approvals happen in the web UI)")
+        if ui_only:
+            console.print("[yellow]ui-only: the network is not monitored, nothing will be changed[/]")
         try:
-            await asyncio.gather(server.serve(), watcher.run())
+            await asyncio.gather(server.serve(), *([] if ui_only else [watcher.run()]))
         finally:
             await pool.close()
 

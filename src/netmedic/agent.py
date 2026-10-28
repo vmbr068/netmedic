@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -43,6 +44,8 @@ Remediations:
 - Each step's checks must only depend on that step and the steps before it (a ping across a link
   fixed by a later step would fail). Order the plan accordingly: transport/links first, then
   routing, then services.
+- Never submit placeholder or speculative steps: every action must be concrete and justified.
+- To prove an announcement to a neighbour/provider is fixed, use the route_exported check.
 - Checks must prove the symptom fixed by that step is gone (session Established, route present via
   the expected protocol, ping, DNS resolution), on the affected routers.
 - Put other options you considered in `alternatives` (never applied).
@@ -85,7 +88,8 @@ class Agent:
         self.on_event = on_event
         self.max_steps = max_steps
         self.usage = {"model": self.tier.label, "llm_calls": 0, "prompt_tokens": 0, "cached_tokens": 0,
-                      "completion_tokens": 0, "reasoning_tokens": 0, "tool_calls": 0, "cost_usd": None}
+                      "completion_tokens": 0, "reasoning_tokens": 0, "tool_calls": 0, "cost_usd": None,
+                      "max_llm_latency": 0.0}
         inv = "\n".join(
             f"- {r.name}: AS{r.asn}, loopback {r.loopback}" + (f", role {r.role}" if r.role else "")
             for r in inventory.routers.values()
@@ -97,6 +101,7 @@ class Agent:
 
     async def _complete(self, messages: list[dict[str, Any]]) -> Any:
         extra = {"reasoning_effort": self.tier.reasoning_effort} if self.tier.reasoning_effort else {}
+        started = time.monotonic()
         resp = await self.client.chat.completions.create(
             model=self.tier.name,
             messages=messages,
@@ -105,6 +110,7 @@ class Agent:
             **extra,
         )
         self.usage["llm_calls"] += 1
+        self.usage["max_llm_latency"] = round(max(self.usage["max_llm_latency"], time.monotonic() - started), 1)
         if u := resp.usage:
             self.usage["prompt_tokens"] += u.prompt_tokens or 0
             self.usage["completion_tokens"] += u.completion_tokens or 0

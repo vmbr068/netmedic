@@ -26,6 +26,7 @@ from .models import (
     EditBirdConfig,
     PingOk,
     Remediation,
+    RouteExported,
     RestartService,
     RoutePresent,
     SetInterface,
@@ -109,7 +110,11 @@ class Executor:
         if not _FILE.match(a.file):
             raise RemediationError(f"invalid file name: {a.file!r}")
         path = f"{AGENT_DIR}/{a.file}"
-        original = await self._must(a.router, ["cat", path])
+        res = await self._run(a.router, ["cat", path])
+        if res.exit_status != 0:
+            files = (await self._run(a.router, ["ls", AGENT_DIR])).stdout.split()
+            raise RemediationError(f"{a.router}: no file {a.file!r} in {AGENT_DIR} (files: {', '.join(files)})")
+        original = res.stdout
         count = original.count(a.find)
         if count == 0 and a.replace and a.replace in original:
             # Someone (an operator, another tool, a previous attempt) already made this change:
@@ -223,9 +228,16 @@ class Executor:
         if isinstance(c, RoutePresent):
             prefix = str(ipaddress.ip_network(c.prefix, strict=False))
             res = await self._run(c.router, ["birdc", "show", "route", "for", prefix, "primary"])
-            line = next((l for l in res.stdout.splitlines() if "unicast" in l), "")
+            # unicast, blackhole (aggregates)... anything but unreachable counts as present
+            line = next((l for l in res.stdout.splitlines()
+                         if re.match(r"^\S+/\d+\s+(?!unreachable)\w+", l)), "")
             ok = bool(line) and (c.protocol is None or f"[{c.protocol} " in line)
             return CheckResult(c, ok, line.strip() or "no route")
+        if isinstance(c, RouteExported):
+            prefix = str(ipaddress.ip_network(c.prefix, strict=False))
+            res = await self._run(c.router, ["birdc", "show", "route", "export", _ident(c.protocol, "protocol")])
+            ok = any(l.startswith(prefix + " ") for l in res.stdout.splitlines())
+            return CheckResult(c, ok, f"{prefix} {'announced' if ok else 'NOT announced'} to {c.protocol}")
         if isinstance(c, PingOk):
             target = str(ipaddress.ip_address(c.target))
             res = await self._run(c.router, ["ping", "-c", "2", "-W", "1", target])

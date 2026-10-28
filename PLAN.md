@@ -195,3 +195,10 @@ iPhone Safari (getUserMedia, rear camera, HTTPS on the LAN)
 - ✅ Multi-root-cause plans: diagnosis = ordered plan (one fix per independent root cause, each verified/rolled back on its own) + alternatives. `chaos.sh meltdown` (3 simultaneous faults, ring split in two) fixed in ONE incident, 116 s, 47 tool calls (was 3 incidents, 325 s, 118 calls)
 
 - ✅ Web UI (pulled forward from Thu): live topology, symptoms by kind, live incident feed (SSE), approve/reject from the browser, auto/approval switch, report a problem, incident history
+
+### Wed Oct 28
+- Enterprise lab (8 routers, OSPF + iBGP RR + dual-homed upstreams + branch) with 8 hard chaos scenarios; ring kept as fallback topology
+- Escalation: issues outside our control end as ESCALATED and their symptoms are acknowledged (no re-investigation loop)
+- ✅ Rack Vision core: SAM 3.1 fast pass (empty ports on live video, 2.7-5 s) + Muse Spark vision deep pass (~20 s) cross-checked with live symptoms; every "empty port" claim verified by SAM (confirmed / unclear / disputed) after catching Spark hallucinating under prompt pressure; /vision mobile page
+- Eval on enterprise: run 1 = 12/16 (failures traced to a wrong default file name, a too strict route check, a too strict eval criterion); run 2 on the 4 problem scenarios = 6/8 (one stalled API call, one post-fix second incident) → tighter API timeouts, per-run timelines in eval
+- Cost per resolved incident: $0.002-0.016 (contributor tier + 40-70 % cache hits)

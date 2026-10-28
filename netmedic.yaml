@@ -1,8 +1,8 @@
 # netmedic configuration (non-secret). Secrets live in secrets.yaml (sops-encrypted).
 model:
   api_base: https://api.meta.ai/v1
-  max_retries: 5         # SDK retries with backoff on 429/5xx/timeouts
-  timeout: 120           # seconds per model call
+  max_retries: 3         # SDK retries with backoff on 429/5xx/timeouts
+  timeout: 45            # seconds per model call (normal answers take < 15 s: fail fast, retry)
   # Escalation ladder: attempt 1 on an incident uses the first tier, each failed attempt moves up.
   # "-contributor" = same Muse Spark checkpoint, 12-20x cheaper, prompts may be used to train Meta
   # models: fine for this lab. For a real network use muse-spark-1.3 or self-hosted open weights.
