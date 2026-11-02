@@ -66,6 +66,7 @@ def create_app(
     ca_cert: Path | None = None,
     vision: RackVision | None = None,
     onsite: OnsiteBroker | None = None,
+    stopping: asyncio.Event | None = None,
 ) -> FastAPI:
     """`token`: if set, required for everything except /ca.crt — via ?token= on the first visit
     (then a cookie, so EventSource works), a cookie, or an `Authorization: Bearer` header."""
@@ -155,15 +156,21 @@ def create_app(
     @app.get("/api/events")
     async def events() -> StreamingResponse:
         async def stream():
+            # Ends when the server shuts down (`stopping`), or Ctrl+C would wait on every open browser.
             queue = hub.subscribe()
+            stop = asyncio.ensure_future(stopping.wait()) if stopping else asyncio.get_running_loop().create_future()
             try:
-                while True:
-                    try:
-                        message = await asyncio.wait_for(queue.get(), timeout=15)
-                        yield f"data: {message}\n\n"
-                    except asyncio.TimeoutError:
-                        yield ": keepalive\n\n"
+                while not stop.done():
+                    get = asyncio.ensure_future(queue.get())
+                    done, _ = await asyncio.wait({get, stop}, timeout=15, return_when=asyncio.FIRST_COMPLETED)
+                    if get in done:
+                        yield f"data: {get.result()}\n\n"
+                    else:
+                        get.cancel()
+                        if not stop.done():
+                            yield ": keepalive\n\n"
             finally:
+                stop.cancel()
                 hub.unsubscribe(queue)
 
         return StreamingResponse(stream(), media_type="text/event-stream",

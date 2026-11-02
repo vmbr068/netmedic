@@ -206,7 +206,10 @@ in
     diskImage = null;
     forwardPorts = [{ from = "host"; host.address = "127.0.0.1"; host.port = 2220 + me.id; guest.port = 22; }];
     sharedDirectories.lab = { source = "$LAB_STATE"; target = "/mnt/lab"; };
-    qemu.options = lib.concatMap (l: [
+    qemu.options = [
+      # QMP control socket: lab.sh cable <router> <iface> off|on pulls a virtual cable (real NO-CARRIER in the guest).
+      "-qmp unix:$LAB_STATE/${name}.qmp,server=on,wait=off"
+    ] ++ lib.concatMap (l: [
       "-netdev dgram,id=${l.iface},local.type=inet,local.host=127.0.0.1,local.port=${toString l.localPort},remote.type=inet,remote.host=127.0.0.1,remote.port=${toString l.remotePort}"
       "-device virtio-net-pci,netdev=${l.iface},mac=${l.mac}"
     ]) myLinks;

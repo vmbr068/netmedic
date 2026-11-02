@@ -19,6 +19,7 @@ if [[ $TOPO == ring ]]; then
     [dns-firewall]="r4: nftables rule drops DNS -> lab names stop resolving everywhere"
     [dns-service]="r4: unbound stopped -> lab names stop resolving everywhere"
     [meltdown]="bgp-peer-as + link-down + dns-service at once -> ring split in two islands, DNS dead"
+    [cable-unplug]="[physical] r3 <-> r4 patch cord pulled -> NO-CARRIER both ends, needs a human (Rack Vision)"
   )
 else
   DESC=(
@@ -30,6 +31,7 @@ else
     [dns-service]="dc1: unbound stopped -> lab names stop resolving everywhere"
     [dns-firewall]="dc1: nftables rule drops DNS -> lab names stop resolving everywhere"
     [meltdown]="failover-broken + ospf-mtu + branch-limit at once"
+    [cable-unplug]="[physical] edge1 <-> core1 patch cord pulled -> NO-CARRIER both ends, needs a human (Rack Vision)"
   )
 fi
 
@@ -45,6 +47,9 @@ table inet hardening {
 EOF"
 }
 
+# Pull a patch cord: both ends lose carrier, nothing in the config changes.
+unplug() { "$LAB" cable "$1" "to-$2" off && "$LAB" cable "$2" "to-$1" off; }
+
 run() {
   case "$TOPO:$1" in
     # ---------------- ring ----------------
@@ -55,6 +60,7 @@ run() {
     ring:link-down) on r3 "ip link set to-r4 down" ;;
     ring:dns-firewall) dns_firewall r4 ;;
     ring:dns-service) on r4 "systemctl stop unbound" ;;
+    ring:cable-unplug) unplug r3 r4 ;;
     ring:meltdown) for s in bgp-peer-as link-down dns-service; do run "$s"; done ;;
 
     # ---------------- enterprise ----------------
@@ -73,11 +79,16 @@ run() {
       on isp1 "ip link set to-edge1 down" ;;
     enterprise:dns-service) on dc1 "systemctl stop unbound" ;;
     enterprise:dns-firewall) dns_firewall dc1 ;;
+    enterprise:cable-unplug) unplug edge1 core1 ;;
     enterprise:meltdown) for s in failover-broken ospf-mtu branch-limit; do run "$s"; done ;;
 
     *:reset)
-      # Every router in parallel, generous timeout, and report failures instead of ignoring them.
-      local pids=() names=() failed=0 i
+      # Plug pulled cables back in first, then every router in parallel, generous timeout, and report
+      # failures instead of ignoring them.
+      local pids=() names=() failed=0 i r iface
+      if [[ -s $LAB_DIR/state/unplugged ]]; then
+        sort -u "$LAB_DIR/state/unplugged" | while read -r r iface; do "$LAB" cable "$r" "$iface" on; done
+      fi
       for r in $(LAB_TOPO=$TOPO "$LAB" routers); do
         LAB_SSH_TIMEOUT=45 on "$r" "lab-reset >/dev/null && { systemctl start unbound nginx 2>/dev/null || true; }" &
         pids+=($!); names+=("$r")

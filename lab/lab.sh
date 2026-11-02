@@ -120,6 +120,26 @@ status() {
   done
 }
 
+# Plug or unplug the virtual cable behind <iface> on <router> (QMP set_link): the guest sees carrier loss,
+# like a pulled patch cord, unlike `ip link set down`. Unplugged cables are remembered for chaos reset.
+cable() {
+  local r=$1 iface=$2 state=$3 sock="$STATE/$1.qmp"
+  [[ -S $sock ]] || { echo "$r: no QMP socket ($sock) — restart the lab (lab.sh down && lab.sh up)" >&2; return 1; }
+  python3 - "$sock" "$iface" "$state" <<'EOF'
+import json, socket, sys
+sock, iface, state = sys.argv[1:]
+s = socket.socket(socket.AF_UNIX); s.connect(sock); f = s.makefile("rw")
+f.readline()  # greeting
+for cmd in ({"execute": "qmp_capabilities"}, {"execute": "set_link", "arguments": {"name": iface, "up": state == "on"}}):
+    f.write(json.dumps(cmd) + "\n"); f.flush()
+    reply = json.loads(f.readline())
+    if "error" in reply:
+        sys.exit(f"QMP: {reply['error']['desc']}")
+EOF
+  touch "$STATE/unplugged"
+  if [[ $state == off ]]; then echo "$r $iface" >>"$STATE/unplugged"; else sed -i "/^$r $iface\$/d" "$STATE/unplugged"; fi
+}
+
 case "${1:-}" in
   use) use "${2:-}" ;;
   up) up ;;
@@ -129,5 +149,6 @@ case "${1:-}" in
   inventory) inventory ;;
   routers) routers ;;
   ssh) shift; ssh_r "$@" ;;
-  *) echo "usage: $0 use ring|enterprise | up | down | ps | status | ssh <router> [cmd]"; exit 1 ;;
+  cable) shift; cable "$@" ;;
+  *) echo "usage: $0 use ring|enterprise | up | down | ps | status | ssh <router> [cmd] | cable <router> <iface> off|on"; exit 1 ;;
 esac

@@ -176,9 +176,18 @@ def watch(
 
         from .vision import RackVision
 
-        server = uvicorn.Server(uvicorn.Config(
-            create_app(watcher, hub, broker, token=token, ca_cert=ca, vision=RackVision(settings), onsite=onsite),
+        stopping = asyncio.Event()
+
+        class Server(uvicorn.Server):
+            def handle_exit(self, sig, frame):  # Ctrl+C / SIGTERM: also end the live event streams
+                stopping.set()
+                super().handle_exit(sig, frame)
+
+        server = Server(uvicorn.Config(
+            create_app(watcher, hub, broker, token=token, ca_cert=ca, vision=RackVision(settings), onsite=onsite,
+                       stopping=stopping),
             host=host, port=port, log_level="warning", **ssl,
+            timeout_graceful_shutdown=5,  # safety net if a request still hangs
         ))
         if lan:
             import segno
@@ -193,9 +202,14 @@ def watch(
             console.print(f"[bold blue]web[/] http://{host}:{port}  (approvals happen in the web UI)")
         if ui_only:
             console.print("[yellow]ui-only: the network is not monitored, nothing will be changed[/]")
+        # uvicorn owns Ctrl+C / SIGTERM: when the server stops, stop the watcher loop with it.
+        watching = None if ui_only else asyncio.create_task(watcher.run())
         try:
-            await asyncio.gather(server.serve(), *([] if ui_only else [watcher.run()]))
+            await server.serve()
         finally:
+            if watching:
+                watching.cancel()
+                await asyncio.gather(watching, return_exceptions=True)
             await pool.close()
 
     try:

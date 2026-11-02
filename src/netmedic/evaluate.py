@@ -24,11 +24,11 @@ CHAOS = Path("lab/chaos.sh")
 
 
 def default_scenarios() -> list[str]:
-    """Scenarios of the current lab topology (lab/chaos.sh list)."""
+    """Scenarios of the current lab topology (lab/chaos.sh list), minus the physical ones that need a human."""
     import subprocess
 
     out = subprocess.run([str(CHAOS), "list"], capture_output=True, text=True).stdout
-    return [line.split()[0] for line in out.splitlines() if line.startswith("  ")]
+    return [line.split()[0] for line in out.splitlines() if line.startswith("  ") and "[physical]" not in line]
 
 
 @dataclass
