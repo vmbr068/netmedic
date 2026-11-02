@@ -1,17 +1,32 @@
-import { BorderBeam } from "@/components/ui/border-beam"
-import { Card } from "@/components/ui/card"
-import { MagicCard } from "@/components/ui/magic-card"
-import { cn } from "@/lib/utils"
+import { style } from "@react-spectrum/s2/style" with { type: "macro" }
 
-// Card with a cursor spotlight (Magic UI); `beam` runs a light around the border while something is live.
-export function Panel({ className, cardClassName, children, beam }: {
-  className?: string; cardClassName?: string; children: React.ReactNode; beam?: boolean
-}) {
+// Spectrum container: a white layer on the gray page, like the panels of Adobe Analytics / Experience Cloud.
+const panel = style({
+  display: "flex",
+  flexDirection: "column",
+  minWidth: 0,
+  backgroundColor: "layer-2",
+  borderRadius: "lg",
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "gray-200",
+  overflow: "hidden",
+})
+
+export function Panel({ children, className, styleOverride }: { children: React.ReactNode; className?: string; styleOverride?: React.CSSProperties }) {
+  return <section className={panel + (className ? " " + className : "")} style={styleOverride}>{children}</section>
+}
+
+export function PanelHeader({ title, description, actions }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <MagicCard className={cn("rounded-2xl shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_-12px_rgb(0_0_0/0.08)] dark:shadow-none", className)}
-               gradientSize={300} gradientColor="var(--spotlight)" gradientOpacity={0.9} gradientFrom="var(--info)" gradientTo="var(--violet)">
-      <Card className={cn("h-full rounded-2xl bg-transparent ring-0 [--card-spacing:--spacing(5)]", cardClassName)}>{children}</Card>
-      {beam && <BorderBeam size={160} duration={4.5} borderWidth={1.5} colorFrom="var(--info)" colorTo="var(--violet)" />}
-    </MagicCard>
+    <header className={style({ display: "flex", alignItems: "center", gap: 12, paddingX: 20, paddingTop: 16, paddingBottom: 12 })}>
+      <div className={style({ display: "flex", flexDirection: "column", gap: 2, flexGrow: 1, minWidth: 0 })}>
+        <h2 className={style({ font: "title", margin: 0, display: "flex", alignItems: "center", gap: 8 })}>{title}</h2>
+        {description && <p className={style({ font: "body-sm", color: "neutral-subdued", margin: 0 })}>{description}</p>}
+      </div>
+      {actions}
+    </header>
   )
 }
+
+export const panelBody = style({ paddingX: 20, paddingBottom: 20, display: "flex", flexDirection: "column", gap: 16, minWidth: 0 })

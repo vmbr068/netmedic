@@ -1,8 +1,9 @@
+import "@/lib/large-scale"  // before Spectrum reads the scale
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
-import { ThemeProvider } from "next-themes"
+import "@react-spectrum/s2/page.css"
 
 import VisionApp from "./app"
 import "../index.css"
 
-createRoot(document.getElementById("root")!).render(<StrictMode><ThemeProvider attribute="class" defaultTheme="system" enableSystem><VisionApp /></ThemeProvider></StrictMode>)
+createRoot(document.getElementById("root")!).render(<StrictMode><VisionApp /></StrictMode>)

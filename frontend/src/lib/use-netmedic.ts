@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react"
-import { toast } from "sonner"
+import { ToastQueue } from "@react-spectrum/s2"
 
 import { api, model, titleCase, type Report, type ServerEvent, type Snapshot } from "./api"
 import { emptyIncident, reduce } from "./incident"
@@ -49,16 +49,16 @@ function notify(ev: ServerEvent) {
   const d = ev.data
   switch (ev.kind) {
     case "incident_opened":
-      toast.error("Incident detected")
+      ToastQueue.negative("Incident detected", { timeout: 6000 })
       break
     case "approval_request":
-      toast.warning("Approval required", { description: d.remediation.title })
+      ToastQueue.info(`Approval required · ${d.remediation.title}`, { timeout: 8000 })
       break
     case "incident_closed": {
       const text = titleCase(d.status)
-      if (!d.resolved) toast.error(text)
-      else if (d.escalated) toast.warning(text)
-      else toast.success(text)
+      if (!d.resolved) ToastQueue.negative(text, { timeout: 6000 })
+      else if (d.escalated) ToastQueue.info(text, { timeout: 6000 })
+      else ToastQueue.positive(text, { timeout: 6000 })
       break
     }
   }

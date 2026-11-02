@@ -1,21 +1,31 @@
 import { useEffect, useState } from "react"
-import { FileText } from "lucide-react"
 import { marked } from "marked"
+import { ActionButton, Content, IllustratedMessage, Heading, ListView, ListViewItem, Skeleton, Text } from "@react-spectrum/s2"
+import ChevronLeft from "@react-spectrum/s2/icons/ChevronLeft"
+import ChevronRight from "@react-spectrum/s2/icons/ChevronRight"
+import FileText from "@react-spectrum/s2/illustrations/linear/FileText"
+import { style } from "@react-spectrum/s2/style" with { type: "macro" }
 
-import { ToneBadge } from "@/components/status"
 import { Panel } from "@/components/panel"
-import { CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { api, fmtDur, reportTime, reportTone, titleCase } from "@/lib/api"
+import { api, fmtDur, reportTime, titleCase } from "@/lib/api"
 import type { Netmedic } from "@/lib/use-netmedic"
-import { cn } from "@/lib/utils"
 
 // Reports are written by netmedic itself, but quote router output: escape before rendering Markdown.
+const PAGE_SIZE = 10
+
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!)
 
 export function IncidentsPage({ nm, report, onReport }: { nm: Netmedic; report: string; onReport: (name: string) => void }) {
   const [html, setHtml] = useState<string | null>(null)
   const current = report || nm.reports[0]?.name
+  const pages = Math.max(1, Math.ceil(nm.reports.length / PAGE_SIZE))
+  const [page, setPage] = useState(0)
+  // A report opened by link (#incidents/<name>) shows the page that holds it.
+  useEffect(() => {
+    const i = nm.reports.findIndex((r) => r.name === report)
+    if (i >= 0) setPage(Math.floor(i / PAGE_SIZE))
+  }, [report, nm.reports])
+  const shown = nm.reports.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const { loadReports } = nm
   useEffect(() => { loadReports() }, [loadReports])
@@ -27,40 +37,45 @@ export function IncidentsPage({ nm, report, onReport }: { nm: Netmedic; report: 
 
   if (!nm.reports.length) {
     return (
-      <div className="flex h-[60vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <FileText className="size-8" strokeWidth={1.5} />
-        No incident yet
-      </div>
+      <IllustratedMessage styles={style({ marginY: 64, marginX: "auto" })}>
+        <FileText />
+        <Heading>No incident yet</Heading>
+        <Content>Reports appear here once netmedic handles an incident.</Content>
+      </IllustratedMessage>
     )
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
-      <Panel className="self-start lg:sticky lg:top-20" cardClassName="max-h-[calc(100vh-7rem)] gap-0 overflow-y-auto py-2">
-        {nm.reports.map((r, i) => {
-          const t = reportTime(r.name)
-          return (
-            <button key={r.name} onClick={() => onReport(r.name)} style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}
-              className={cn("animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-both duration-300 mx-2 flex flex-col gap-1 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-muted",
-                r.name === current && "bg-muted")}>
-              <span className="flex items-center justify-between gap-2">
-                <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                  {t?.toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
-                  {r.duration != null && ` · ${fmtDur(r.duration)}`}
-                </span>
-                <ToneBadge tone={reportTone(r.status)}>{titleCase(r.status)}</ToneBadge>
-              </span>
-              <span className="line-clamp-2 text-sm">{r.summary}</span>
-            </button>
-          )
-        })}
-      </Panel>
+    <div className={style({ display: "grid", gap: 16, alignItems: "start", gridTemplateColumns: { default: ["1fr"], lg: [400, "1fr"] } })}>
+      <div className={style({ display: "flex", flexDirection: "column", gap: 8 })}>
+        <ListView aria-label="Incidents" selectionMode="single" selectionStyle="highlight" disallowEmptySelection
+                  selectedKeys={current ? [current] : []} onSelectionChange={(keys) => { const [k] = keys; if (k) onReport(String(k)) }}
+                  styles={style({ height: "auto" })}>
+          {shown.map((r) => {
+            const t = reportTime(r.name)
+            const when = t?.toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+            return (
+              <ListViewItem key={r.name} id={r.name} textValue={r.summary}>
+                <Text>{r.summary}</Text>
+                <Text slot="description">{titleCase(r.status)} · {when}{r.duration != null && ` · ${fmtDur(r.duration)}`}</Text>
+              </ListViewItem>
+            )
+          })}
+        </ListView>
+        <nav aria-label="Incident pages" className={style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 })}>
+          <ActionButton isQuiet aria-label="Previous page" isDisabled={page === 0} onPress={() => setPage(page - 1)}><ChevronLeft /></ActionButton>
+          <span className={style({ font: "ui-sm", color: "neutral-subdued" })}>
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, nm.reports.length)} of {nm.reports.length}
+          </span>
+          <ActionButton isQuiet aria-label="Next page" isDisabled={page >= pages - 1} onPress={() => setPage(page + 1)}><ChevronRight /></ActionButton>
+        </nav>
+      </div>
       <Panel>
-        <CardContent>
+        <div className={style({ padding: 24 })}>
           {html == null
-            ? <div className="flex flex-col gap-3"><Skeleton className="h-6 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-4/5" /></div>
-            : <article className="report" dangerouslySetInnerHTML={{ __html: html }} />}
-        </CardContent>
+            ? <Skeleton isLoading><p className={style({ font: "heading" })}>Loading report</p><p className={style({ font: "body" })}>Loading the incident report content</p></Skeleton>
+            : <article className={"report " + style({ font: "body-sm" })} dangerouslySetInnerHTML={{ __html: html }} />}
+        </div>
       </Panel>
     </div>
   )

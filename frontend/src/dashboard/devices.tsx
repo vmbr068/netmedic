@@ -1,7 +1,7 @@
+import { Cell, Column, Row, TableBody, TableHeader, TableView } from "@react-spectrum/s2"
+import { style } from "@react-spectrum/s2/style" with { type: "macro" }
+
 import { StatusText, ToneBadge } from "@/components/status"
-import { Panel } from "@/components/panel"
-import { CardContent } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { model } from "@/lib/api"
 import type { Netmedic } from "@/lib/use-netmedic"
 
@@ -11,38 +11,29 @@ export function DevicesPage({ nm, onDevice }: { nm: Netmedic; onDevice: (name: s
   if (!nm.snapshot) return <Loading />
   const m = model(nm.snapshot)
   return (
-    <Panel cardClassName="py-0">
-      <CardContent className="px-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-6">Name</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>ASN</TableHead>
-              <TableHead>Loopback</TableHead>
-              <TableHead className="text-right">Sessions</TableHead>
-              <TableHead className="pr-6 text-right">Issues</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {m.devices.map((d, i) => (
-              <TableRow key={d.name} className="animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-both duration-300 cursor-pointer" style={{ animationDelay: `${i * 40}ms` }}
-                        onClick={() => onDevice(d.name)}>
-                <TableCell className="pl-6 font-medium">{d.name}</TableCell>
-                <TableCell><StatusText status={d.status} /></TableCell>
-                <TableCell className="capitalize text-muted-foreground">{d.role ?? "–"}</TableCell>
-                <TableCell className="tabular-nums">{d.asn != null ? `AS${d.asn}` : "–"}</TableCell>
-                <TableCell className="font-mono text-xs">{d.loopback ?? "–"}</TableCell>
-                <TableCell className="text-right font-mono text-xs tabular-nums">{d.up}/{d.total}</TableCell>
-                <TableCell className="pr-6 text-right">
-                  {d.issues.length ? <ToneBadge tone="warn">{d.issues.length}</ToneBadge> : <span className="text-muted-foreground">–</span>}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Panel>
+    <TableView aria-label="Devices" onAction={(k) => onDevice(String(k))} styles={style({ height: "[calc(100vh - 160px)]", minHeight: 320 })}>
+      <TableHeader>
+        <Column isRowHeader>Name</Column>
+        <Column>Status</Column>
+        <Column>Role</Column>
+        <Column>ASN</Column>
+        <Column>Loopback</Column>
+        <Column align="end">Sessions</Column>
+        <Column align="end">Issues</Column>
+      </TableHeader>
+      <TableBody>
+        {m.devices.map((d) => (
+          <Row key={d.name} id={d.name}>
+            <Cell>{d.name}</Cell>
+            <Cell><StatusText status={d.status} /></Cell>
+            <Cell>{d.role ? d.role[0].toUpperCase() + d.role.slice(1) : "–"}</Cell>
+            <Cell>{d.asn != null ? `AS${d.asn}` : "–"}</Cell>
+            <Cell>{d.loopback ?? "–"}</Cell>
+            <Cell align="end">{d.up}/{d.total}</Cell>
+            <Cell align="end">{d.issues.length ? <ToneBadge tone="warn">{d.issues.length}</ToneBadge> : "–"}</Cell>
+          </Row>
+        ))}
+      </TableBody>
+    </TableView>
   )
 }

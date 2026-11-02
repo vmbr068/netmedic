@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { motion } from "motion/react"
+import { style } from "@react-spectrum/s2/style" with { type: "macro" }
 
 import type { Device, Model, Snapshot } from "@/lib/api"
-import { cn } from "@/lib/utils"
 
 type Point = [number, number]
 
@@ -26,8 +26,17 @@ function layout(devices: Device[], w: number, h: number): Record<string, Point> 
   return pos
 }
 
-const STROKE = { ok: "var(--border)", warn: "var(--warning)", bad: "var(--destructive)" }
-const FILL = { ok: "var(--success)", warn: "var(--warning)", bad: "var(--destructive)" }
+// Spectrum colors resolved to CSS values at build time, so the SVG follows light/dark like the rest of the page.
+const C = {
+  card: style({ fill: "gray-25" }),
+  border: style({ stroke: "gray-300" }),
+  heading: style({ fill: "gray-900" }),
+  subdued: style({ fill: "gray-600" }),
+  muted: style({ fill: "gray-100" }),
+}
+const STROKE = { ok: style({ stroke: "gray-300" }), warn: style({ stroke: "notice-800" }), bad: style({ stroke: "negative-900" }) }
+const FILL = { ok: style({ fill: "positive-900" }), warn: style({ fill: "notice-800" }), bad: style({ fill: "negative-900" }) }
+const LINE = { up: style({ stroke: "gray-500" }), down: style({ stroke: "negative-900" }), flow: style({ stroke: "accent-900" }) }
 
 // Drawn at the real size of its container (1 unit = 1 px), so labels stay readable at any width.
 export function Topology({
@@ -45,7 +54,7 @@ export function Topology({
     return () => ro.disconnect()
   }, [])
   return (
-    <div ref={ref} className={cn("w-full", className)} style={{ height }}>
+    <div ref={ref} className={className} style={{ height, width: "100%" }}>
       {width > 0 && <Graph m={m} snapshot={snapshot} width={width} height={height} selected={selected} onSelect={onSelect} />}
     </div>
   )
@@ -57,25 +66,32 @@ function Graph({
   m: Model; snapshot: Snapshot; width: number; height: number; selected?: string | null; onSelect?: (name: string) => void
 }) {
   const pos = layout(m.devices, width, height)
-  const NW = 136, NH = 46
+  // Shrink the cards when the widest layer would not fit side by side (phones).
+  const perLayer = new Map<number, number>()
+  m.devices.forEach((d) => d.layer != null && perLayer.set(d.layer, (perLayer.get(d.layer) ?? 0) + 1))
+  const widest = Math.max(1, ...perLayer.values())
+  const NW = m.devices.every((d) => d.layer != null) ? Math.min(164, Math.floor(width / (widest + 1)) - 8) : 164, NH = 56
+  const compact = NW < 150
+  const ER = 26  // external AS bubble radius
+  const layered = m.devices.length > 0 && m.devices.every((d) => d.layer != null)
   const cx = width / 2, cy = height / 2
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="select-none" role="img" aria-label="Network topology">
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className={style({ userSelect: "none", fontFamily: "sans" })} role="img" aria-label="Network topology">
       {m.links.map((l) => {
         const a = pos[l.a], b = pos[l.b]
         if (!a || !b) return null
         const tip = Object.entries(l.ends).map(([r, e]) => `${r} ${e.proto}: ${e.state}`).join("\n")
         return (
           <g key={l.a + l.b}>
-            <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={l.up ? "var(--muted-foreground)" : "var(--destructive)"}
-                  strokeOpacity={l.up ? 0.35 : 1} strokeWidth={l.up ? 1.5 : 2} strokeDasharray={l.up ? undefined : "5 4"} />
-            {l.up && <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="var(--info)" strokeOpacity={0.55} strokeWidth={2}
-                           strokeLinecap="round" strokeDasharray="2 22" className="animate-flow" />}
+            <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} className={l.up ? LINE.up : LINE.down}
+                  strokeOpacity={l.up ? 0.5 : 1} strokeWidth={l.up ? 1.5 : 2} strokeDasharray={l.up ? undefined : "5 4"} />
+            {l.up && <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} className={LINE.flow + " animate-flow"} strokeOpacity={0.6} strokeWidth={2}
+                           strokeLinecap="round" strokeDasharray="2 22" />}
             <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="transparent" strokeWidth={12}><title>{tip}</title></line>
             {!l.up && (
               <g transform={`translate(${(a[0] + b[0]) / 2} ${(a[1] + b[1]) / 2})`}>
-                <rect x={-20} y={-9} width={40} height={18} rx={9} fill="var(--destructive)" />
+                <rect x={-20} y={-9} width={40} height={18} rx={9} className={FILL.bad} />
                 <text textAnchor="middle" y={3.5} fontSize={10} fontWeight={600} fill="white">Down</text>
               </g>
             )}
@@ -83,18 +99,29 @@ function Graph({
         )
       })}
 
-      {m.externals.map((e, i) => {
+      {m.externals.map((e) => {
         const [rx, ry] = pos[e.router] || [cx, cy]
-        const ang = Math.atan2(ry - cy, rx - cx) + (i % 2 ? 0.45 : -0.45) * Math.ceil(i / 2)
-        const ex = rx + Math.cos(ang) * 120, ey = Math.max(30, Math.min(height - 30, ry + Math.sin(ang) * 120))
+        // Fan the peers of one router symmetrically around the outward axis (a lone peer sits on it).
+        const mine = m.externals.filter((x) => x.router === e.router)
+        const k = mine.indexOf(e)
+        // Layered layout: straight out sideways (or up for a centred router), so it looks the same at any panel size.
+        // Ring layout: radially away from the centre.
+        const axis = !layered ? Math.atan2(ry - cy, rx - cx) : Math.abs(rx - cx) < 1 ? -Math.PI / 2 : rx < cx ? Math.PI : 0
+        const ang = axis + (k - (mine.length - 1) / 2) * 0.6
+        // Out of the router card along the ray (clear of its edge), kept inside the view; if the clamp pushed it back onto the card, step sideways.
+        const cos = Math.cos(ang), sin = Math.sin(ang)
+        const edge = Math.min(NW / 2 / Math.max(Math.abs(cos), 1e-6), NH / 2 / Math.max(Math.abs(sin), 1e-6))
+        const clampX = (x: number) => Math.max(ER + 4, Math.min(width - ER - 4, x)), clampY = (y: number) => Math.max(ER + 4, Math.min(height - ER - 4, y))
+        let ex = clampX(rx + cos * (edge + ER + 24)), ey = clampY(ry + sin * (edge + ER + 24))
+        if (Math.abs(ex - rx) < NW / 2 + ER + 6 && Math.abs(ey - ry) < NH / 2 + ER + 6) ex = clampX(rx + Math.sign(cos || 1) * (NW / 2 + ER + 16))
         const up = e.state.startsWith("Established")
         return (
           <g key={e.router + e.proto}>
             <title>{`${e.neighbor} (AS${e.asn}) via ${e.router} · ${e.state}`}</title>
-            <line x1={rx} y1={ry} x2={ex} y2={ey} stroke={up ? "var(--muted-foreground)" : "var(--destructive)"}
-                  strokeOpacity={up ? 0.3 : 1} strokeDasharray="3 4" strokeWidth={1.5} />
-            <circle cx={ex} cy={ey} r={22} fill="var(--card)" stroke={up ? "var(--border)" : "var(--destructive)"} strokeWidth={1.5} />
-            <text x={ex} y={ey + 3.5} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--muted-foreground)">
+            <line x1={rx} y1={ry} x2={ex} y2={ey} className={up ? LINE.up : LINE.down}
+                  strokeOpacity={up ? 0.45 : 1} strokeDasharray="3 4" strokeWidth={1.5} />
+            <circle cx={ex} cy={ey} r={ER} className={C.card + " " + (up ? C.border : LINE.down)} strokeWidth={1.5} />
+            <text x={ex} y={ey + 3.5} textAnchor="middle" fontSize={11.5} fontWeight={600} className={C.subdued}>
               AS{e.asn ?? "?"}
             </text>
           </g>
@@ -107,27 +134,26 @@ function Graph({
         const sessions = Object.keys(snapshot.sessions[d.name] || {}).length
         return (
           <g key={d.name} transform={`translate(${x - NW / 2} ${y - NH / 2})`} onClick={() => onSelect?.(d.name)}
-             className={cn(onSelect && "cursor-pointer")}>
+             style={onSelect ? { cursor: "pointer" } : undefined}>
            <motion.g initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} whileHover={onSelect && { scale: 1.04 }}
                      transition={{ type: "spring", stiffness: 260, damping: 22, delay: 0.05 * i }}
                      style={{ transformBox: "fill-box", transformOrigin: "center" }}>
             {d.status !== "ok" && (  // halo pulsing around a device that needs attention
-              <rect x={-3} y={-3} width={NW + 6} height={NH + 6} rx={13} fill="none" stroke={STROKE[d.status]} strokeWidth={2}>
+              <rect x={-3} y={-3} width={NW + 6} height={NH + 6} rx={11} fill="none" className={STROKE[d.status]} strokeWidth={2}>
                 <animate attributeName="opacity" values="0.7;0;0.7" dur="2s" repeatCount="indefinite" />
               </rect>
             )}
-            <rect width={NW} height={NH} rx={12} fill="var(--card)"
-                  stroke={sel ? "var(--primary)" : STROKE[d.status]} strokeWidth={sel || d.status !== "ok" ? 1.75 : 1}
-                  style={{ filter: "drop-shadow(0 2px 6px rgb(0 0 0 / 0.08))" }} />
-            <rect x={10} y={11} width={24} height={24} rx={7} fill={sel ? "var(--primary)" : "var(--muted)"} fillOpacity={sel ? 0.12 : 1} />
-            <g transform="translate(14 15)" stroke={sel ? "var(--primary)" : "var(--muted-foreground)"} strokeWidth={1.5} fill="none" strokeLinecap="round">
+            <rect width={NW} height={NH} rx={8} className={C.card + " " + (sel ? LINE.flow : STROKE[d.status])}
+                  strokeWidth={sel ? 2 : d.status !== "ok" ? 1.75 : 1} />
+            <rect x={12} y={14} width={28} height={28} rx={6} className={C.muted} />
+            <g transform="translate(18 20)" className={sel ? LINE.flow : style({ stroke: "gray-700" })} strokeWidth={1.5} fill="none" strokeLinecap="round">
               <rect x={0.5} y={4} width={15} height={8} rx={2} />
               <path d="M4 8h.01M7 8h.01" />
             </g>
-            <circle cx={33} cy={13} r={4} fill={FILL[d.status]} stroke="var(--card)" strokeWidth={2} />
-            <text x={44} y={20} fontSize={12.5} fontWeight={600} fill="var(--foreground)">{d.name}</text>
-            <text x={44} y={35} fontSize={10.5} fill="var(--muted-foreground)">
-              {[d.role, d.asn != null && `AS${d.asn}`].filter(Boolean).join(" · ") || `${sessions} sessions`}
+            <circle cx={39} cy={16} r={4.5} className={FILL[d.status]} />
+            <text x={50} y={25} fontSize={15} fontWeight={700} className={C.heading}>{d.name}</text>
+            <text x={50} y={42} fontSize={12.5} className={C.subdued}>
+              {[d.role, !compact && d.asn != null && `AS${d.asn}`].filter(Boolean).join(" · ") || `${sessions} sessions`}
             </text>
            </motion.g>
           </g>

@@ -1,21 +1,40 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { Activity, ChevronDown, ChevronUp, ImageUp, Loader2, ScanLine, Spline, Video, VideoOff, X } from "lucide-react"
+import {
+  ActionButton, Badge, Button, ButtonGroup, CloseButton, Content, Heading, IllustratedMessage, ListView, ListViewItem, ProgressCircle,
+  Provider, StatusLight, Text, ToggleButton,
+} from "@react-spectrum/s2"
+import ChevronDown from "@react-spectrum/s2/icons/ChevronDown"
+import ChevronUp from "@react-spectrum/s2/icons/ChevronUp"
+import ImageAdd from "@react-spectrum/s2/icons/ImageAdd"
+import CameraIllustration from "@react-spectrum/s2/illustrations/linear/Camera"
+import Path from "@react-spectrum/s2/icons/Path"
+import Target from "@react-spectrum/s2/icons/Target"
+import Video from "@react-spectrum/s2/icons/Video"
+import { iconStyle, style } from "@react-spectrum/s2/style" with { type: "macro" }
+import { Button as AriaButton } from "react-aria-components"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { Logo } from "@/dashboard/app"
+import { useColorScheme } from "@/lib/color-scheme"
 
 import { VisionEngine, type Finding, type Tone, type VisionState } from "./engine"
 
-const DOT: Record<Tone, string> = { ok: "bg-success", warn: "bg-warning", bad: "bg-destructive", info: "bg-info", idle: "bg-muted-foreground" }
-const SEV: Record<Finding["severity"], string> = { critical: "bg-destructive", warning: "bg-warning", info: "bg-info" }
+const LIGHT = { ok: "positive", warn: "notice", bad: "negative", info: "informative", idle: "neutral" } as const satisfies Record<Tone, string>
+const SEV = { critical: "negative", warning: "notice", info: "informative" } as const satisfies Record<Finding["severity"], string>
 const VERDICT = {
-  confirmed: ["SAM confirmed", "bg-success/10 text-success"],
-  unclear: ["SAM unsure", "bg-warning/15 text-amber-700"],
-  disputed: ["SAM disputes", "bg-destructive/10 text-destructive"],
+  confirmed: ["SAM confirmed", "positive"],
+  unclear: ["SAM unsure", "notice"],
+  disputed: ["SAM disputes", "negative"],
 } as const
 
+// Floating Spectrum surfaces over the camera feed.
+const surface = style({ pointerEvents: "auto", backgroundColor: "layer-2", borderRadius: "xl", boxShadow: "elevated" })
+
 export default function VisionApp() {
+  const [scheme] = useColorScheme()
+  return <Provider colorScheme={scheme} background="base"><Vision /></Provider>
+}
+
+function Vision() {
   const video = useRef<HTMLVideoElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const file = useRef<HTMLInputElement>(null)
@@ -42,92 +61,91 @@ export default function VisionApp() {
     else if (s.camera) engine.scan()
     else file.current?.click()
   }
+  const upload = () => file.current?.click()
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-neutral-950 text-foreground">
-      <video ref={video} playsInline autoPlay muted className="absolute inset-0 size-full object-contain" />
-      <canvas ref={canvas} className="absolute inset-0 size-full" />
+    <div className={style({ position: "fixed", inset: 0, overflow: "hidden", backgroundColor: "black" })}>
+      <video ref={video} playsInline autoPlay muted className={style({ position: "absolute", inset: 0, size: "full", objectFit: "contain" })} />
+      <canvas ref={canvas} className={style({ position: "absolute", inset: 0, size: "full" })} />
 
-      <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 p-3 pt-[max(env(safe-area-inset-top),12px)]">
-        <a href="/" className="pointer-events-auto flex items-center gap-2 rounded-full bg-background/95 py-1.5 pr-3.5 pl-1.5 text-sm font-semibold shadow-sm backdrop-blur">
-          <span className="grid size-7 place-items-center rounded-full bg-brand text-white"><Activity className="size-3.5" strokeWidth={2.5} /></span>
-          Rack Vision
+      <header className={style({ pointerEvents: "none", position: "absolute", top: 0, insetX: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 12 })}
+              style={{ paddingTop: "max(env(safe-area-inset-top), 12px)" }}>
+        <a href="./" className={surface + " " + style({ display: "flex", alignItems: "center", gap: 8, paddingY: 4, paddingStart: 4, paddingEnd: 12, textDecoration: "none", font: "title-sm", borderRadius: "full" })}>
+          <Logo size={28} />Rack Vision
         </a>
-        <span className="flex items-center gap-2 rounded-full bg-background/95 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
-          {s.scanning ? <Loader2 className="size-3 animate-spin text-info" /> : <span className={cn("size-2 rounded-full", DOT[s.status.tone])} />}
-          {s.status.text}
+        <span className={surface + " " + style({ display: "flex", alignItems: "center", gap: 8, paddingX: 12, paddingY: 4, borderRadius: "full" })}>
+          {s.scanning ? <><ProgressCircle size="S" isIndeterminate aria-label="Scanning" /><Text>{s.status.text}</Text></>
+            : <StatusLight size="S" variant={LIGHT[s.status.tone]}>{s.status.text}</StatusLight>}
         </span>
       </header>
 
       {s.camera === false && !s.frozen && (
-        <div className="absolute inset-0 grid place-items-center bg-muted p-6">
-          <div className="flex max-w-xs flex-col items-center gap-3 text-center">
-            <span className="grid size-12 place-items-center rounded-xl bg-background shadow-sm"><VideoOff className="size-5 text-muted-foreground" /></span>
-            <p className="font-medium">Camera unavailable</p>
-            <p className="text-sm text-muted-foreground">HTTPS required · <code className="font-mono text-xs">netmedic watch --lan</code></p>
-            <Button onClick={() => file.current?.click()}><ImageUp />Upload photo</Button>
-          </div>
+        <div className={style({ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "layer-1", padding: 24 })}>
+          <IllustratedMessage>
+            <CameraIllustration />
+            <Heading>Camera unavailable</Heading>
+            <Content>HTTPS required</Content>
+            <ButtonGroup><Button variant="accent" onPress={upload}><ImageAdd /><Text>Upload photo</Text></Button></ButtonGroup>
+          </IllustratedMessage>
         </div>
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2 p-3 pb-[max(env(safe-area-inset-bottom),12px)]">
+      <div className={style({ pointerEvents: "none", position: "absolute", bottom: 0, insetX: 0, zIndex: 1, display: "flex", flexDirection: "column", gap: 8, padding: 12 })}
+           style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}>
         {s.trace && engine && <TraceCard s={s} onClose={() => engine.clearTrace()} />}
         {s.scan && engine && <Results s={s} engine={engine} />}
 
-        <div className="pointer-events-auto flex flex-col gap-3 rounded-2xl bg-background/95 p-3 shadow-lg backdrop-blur">
+        <div className={surface + " " + style({ display: "flex", flexDirection: "column", gap: 12, padding: 12 })}>
           {!s.scan && s.camera && (
-            <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-              <Legend color="bg-success" label="Plugged" />
-              <Legend color="bg-warning" label="Empty" />
-              <span className="flex items-center gap-1.5"><Spline className="size-3" />Tap to trace</span>
+            <div className={style({ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 })}>
+              <StatusLight size="S" variant="positive">Plugged</StatusLight>
+              <StatusLight size="S" variant="notice">Empty</StatusLight>
+              <span className={style({ display: "flex", alignItems: "center", gap: 4, font: "ui-sm", color: "neutral-subdued" })}>
+                <Path styles={iconStyle({ size: "S" })} />Tap to trace
+              </span>
             </div>
           )}
-          <div className="flex items-center justify-around">
-            <Button variant={s.live ? "default" : "outline"} size="icon-lg" className="rounded-full" disabled={!s.camera || s.frozen}
-                    onClick={() => engine?.setLive(!s.live)} aria-label="Live detection">
-              {s.live ? <Video /> : <VideoOff />}
-            </Button>
-            <button onClick={shutter} disabled={s.scanning} aria-label={s.frozen ? "Back to live" : "Scan"}
-              className="grid size-16 place-items-center rounded-full border-4 border-foreground/90 transition active:scale-95 disabled:opacity-60">
-              <span className={cn("grid size-12 place-items-center rounded-full bg-brand text-white shadow-lg shadow-primary/40", s.scanning && "animate-pulse")}>
-                {s.frozen && s.scan && s.camera ? <Video className="size-5" /> : <ScanLine className="size-5" />}
+          <div className={style({ display: "flex", alignItems: "center", justifyContent: "space-around" })}>
+            <ToggleButton aria-label="Live detection" size="L" isEmphasized isSelected={s.live} isDisabled={!s.camera || s.frozen}
+                          onChange={(v) => engine?.setLive(v)}><Target /></ToggleButton>
+            <AriaButton onPress={shutter} isDisabled={s.scanning} aria-label={s.frozen ? "Back to live" : "Scan"}
+              className={style({
+                size: 64, borderRadius: "full", borderWidth: 4, borderStyle: "solid", borderColor: "gray-800", backgroundColor: "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 0, outlineStyle: "none",
+                opacity: { default: 1, isDisabled: 0.6 }, scale: { default: 1, isPressed: 0.95 }, transition: "transform",
+              })}>
+              <span className={style({ size: 48, borderRadius: "full", backgroundColor: "accent-900", display: "flex", alignItems: "center", justifyContent: "center" })}>
+                {s.scanning ? <ProgressCircle size="S" isIndeterminate staticColor="white" aria-label="Scanning" />
+                  : s.frozen && s.scan && s.camera ? <Video styles={iconStyle({ color: "white" })} /> : <Target styles={iconStyle({ color: "white" })} />}
               </span>
-            </button>
-            <Button variant="outline" size="icon-lg" className="rounded-full" onClick={() => file.current?.click()} aria-label="Upload photo">
-              <ImageUp />
-            </Button>
+            </AriaButton>
+            <ActionButton size="L" aria-label="Upload photo" onPress={upload}><ImageAdd /></ActionButton>
           </div>
         </div>
       </div>
 
-      <input ref={file} type="file" accept="image/*" capture="environment" className="hidden"
+      <input ref={file} type="file" accept="image/*" capture="environment" className={style({ display: "none" })}
              onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = "" }} />
     </div>
   )
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
-  return <span className="flex items-center gap-1.5"><span className={cn("size-2 rounded-sm", color)} />{label}</span>
-}
-
 function TraceCard({ s, onClose }: { s: VisionState; onClose: () => void }) {
   const t = s.trace!
   return (
-    <div className="pointer-events-auto flex items-start gap-3 rounded-2xl bg-background/95 p-3 shadow-lg backdrop-blur">
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-info/10 text-info">
-        {t.pending ? <Loader2 className="size-4 animate-spin" /> : <Spline className="size-4" />}
-      </span>
-      <div className="min-w-0 flex-1 text-sm">
-        {t.pending ? <p className="pt-1.5 font-medium">Tracing…</p> : (
+    <div className={surface + " " + style({ display: "flex", alignItems: "start", gap: 12, padding: 12, font: "body-sm" })}>
+      {t.pending ? <ProgressCircle size="S" isIndeterminate aria-label="Tracing" /> : <Path styles={iconStyle({ color: "informative" })} />}
+      <div className={style({ flexGrow: 1, minWidth: 0 })}>
+        {t.pending ? <p className={style({ fontWeight: "bold", margin: 0 })}>Tracing…</p> : (
           <>
-            <p className="font-medium">{t.start || "Cable"}</p>
-            <p className="text-muted-foreground">→ {t.end || "End not visible"}</p>
-            {t.note && <p className="mt-0.5 text-xs text-muted-foreground">{t.note}</p>}
+            <p className={style({ fontWeight: "bold", margin: 0 })}>{t.start || "Cable"}</p>
+            <p className={style({ color: "neutral-subdued", margin: 0 })}>→ {t.end || "End not visible"}</p>
+            {t.note && <p className={style({ font: "body-xs", color: "neutral-subdued", marginTop: 2, marginBottom: 0 })}>{t.note}</p>}
           </>
         )}
       </div>
-      {typeof t.confidence === "number" && <Badge variant="secondary" className="mt-1 tabular-nums">{Math.round(t.confidence * 100)}%</Badge>}
-      <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close"><X /></Button>
+      {typeof t.confidence === "number" && <Badge size="S" variant="neutral">{Math.round(t.confidence * 100)}%</Badge>}
+      <CloseButton size="S" onPress={onClose} aria-label="Close" />
     </div>
   )
 }
@@ -135,36 +153,38 @@ function TraceCard({ s, onClose }: { s: VisionState; onClose: () => void }) {
 function Results({ s, engine }: { s: VisionState; engine: VisionEngine }) {
   const scan = s.scan!
   return (
-    <div className="pointer-events-auto flex flex-col rounded-2xl bg-background/95 shadow-lg backdrop-blur">
-      <div className="flex items-center gap-2 p-3 pb-2">
-        <p className="flex-1 text-sm font-medium">{scan.findings.length ? `${scan.findings.length} finding${scan.findings.length > 1 ? "s" : ""}` : "No anomaly"}</p>
-        <Button variant="ghost" size="sm" onClick={() => engine.setCollapsed(!s.collapsed)}>
-          {s.collapsed ? <ChevronUp /> : <ChevronDown />}{s.collapsed ? "Show" : "Hide"}
-        </Button>
-        {s.camera && <Button size="sm" onClick={() => engine.resume()}><Video />Live</Button>}
+    <div className={surface + " " + style({ display: "flex", flexDirection: "column" })}>
+      <div className={style({ display: "flex", alignItems: "center", gap: 8, padding: 12, paddingBottom: 8 })}>
+        <p className={style({ font: "title-sm", flexGrow: 1, margin: 0 })}>
+          {scan.findings.length ? `${scan.findings.length} finding${scan.findings.length > 1 ? "s" : ""}` : "No anomaly"}
+        </p>
+        <ActionButton isQuiet size="S" onPress={() => engine.setCollapsed(!s.collapsed)}>
+          {s.collapsed ? <ChevronUp /> : <ChevronDown />}<Text>{s.collapsed ? "Show" : "Hide"}</Text>
+        </ActionButton>
+        {s.camera && <Button size="S" variant="accent" onPress={() => engine.resume()}><Video /><Text>Live</Text></Button>}
       </div>
       {!s.collapsed && (
-        <div className="max-h-[34vh] overflow-y-auto px-3 pb-3">
-          {scan.summary && <p className="mb-2 text-sm text-muted-foreground">{scan.summary}</p>}
-          <ul className="flex flex-col gap-1.5">
+        <div className={style({ paddingX: 12, paddingBottom: 12, display: "flex", flexDirection: "column", gap: 8 })}>
+          {scan.summary && <p className={style({ font: "body-sm", color: "neutral-subdued", margin: 0 })}>{scan.summary}</p>}
+          <ListView aria-label="Findings" selectionMode="single" selectionStyle="highlight" disallowEmptySelection
+                    selectedKeys={s.selected >= 0 ? [s.selected] : []}
+                    onSelectionChange={(keys) => { const [k] = keys; if (k != null) engine.select(Number(k)) }}
+                    styles={style({ maxHeight: "[34vh]" })}>
             {scan.findings.map((f, i) => (
-              <li key={i}>
-                <button onClick={() => engine.select(i)}
-                  className={cn("flex w-full gap-3 rounded-xl border p-2.5 text-left transition-colors", s.selected === i ? "border-foreground" : "hover:bg-muted")}>
-                  <span className={cn("grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-white", SEV[f.severity] ?? "bg-info")}>{i + 1}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{f.title}</span>
-                    <span className="line-clamp-2 text-xs text-muted-foreground">{f.detail}</span>
-                    {f.verdict && f.verdict in VERDICT && (
-                      <Badge className={cn("mt-1.5 border-0", VERDICT[f.verdict as keyof typeof VERDICT][1])}>
-                        {VERDICT[f.verdict as keyof typeof VERDICT][0]}
-                      </Badge>
-                    )}
-                  </span>
-                </button>
-              </li>
+              <ListViewItem key={i} id={i} textValue={f.title}>
+                <Text>{i + 1}. {f.title}</Text>
+                <Text slot="description">
+                  {f.detail}{f.verdict && f.verdict in VERDICT ? ` · ${VERDICT[f.verdict as keyof typeof VERDICT][0]}` : ""}
+                </Text>
+              </ListViewItem>
             ))}
-          </ul>
+          </ListView>
+          <div className={style({ display: "flex", gap: 8, flexWrap: "wrap" })}>
+            {(["critical", "warning", "info"] as const).map((sev) => {
+              const n = scan.findings.filter((f) => f.severity === sev).length
+              return n > 0 && <StatusLight key={sev} size="S" variant={SEV[sev]}>{n} {sev}</StatusLight>
+            })}
+          </div>
         </div>
       )}
     </div>
