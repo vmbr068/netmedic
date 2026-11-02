@@ -41,7 +41,11 @@ reversible path, and hands a human exactly what it cannot fix itself.
 
 ## Demo
 
-▶ **3-minute demo video: coming soon.**
+<p align="center">
+  <a href="https://youtu.be/_QdP5m4D6-Q"><img src="docs/video-thumbnail.png" alt="Watch the netmedic demo on YouTube (2:26)" width="80%"></a>
+</p>
+
+<sub>Music: “Floating Cities” by Kevin MacLeod (incompetech.com), licensed under CC BY 4.0.</sub>
 
 ## How it works
 
@@ -54,9 +58,9 @@ reversible path, and hands a human exactly what it cannot fix itself.
 | **5. Report** | Every incident ends with a root-cause report: evidence, actions, checks, rollbacks, escalation, cost. |
 
 <p align="center">
-  <img src="docs/rack-vision-request.png" alt="Photo request in the live incident" width="58%" align="middle">
+  <img src="docs/rack-vision-request.png" alt="Photo request in the live incident" width="66%" align="middle">
   &nbsp;
-  <img src="docs/rack-vision-phone.png" alt="The same request on the technician's phone" width="38%" align="middle">
+  <img src="docs/rack-vision-phone.png" alt="Rack Vision on the technician's iPhone: port 13 is empty" width="24%" align="middle">
 </p>
 
 ## Built with Meta AI

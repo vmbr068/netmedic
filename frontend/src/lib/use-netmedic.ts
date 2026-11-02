@@ -18,6 +18,7 @@ export function useNetmedic() {
 
   useEffect(() => {
     const es = new EventSource("/api/events")
+    const since = Date.now() / 1000  // the server replays the last incident on connect: no toasts for those
     es.onmessage = (m) => {
       const ev: ServerEvent = JSON.parse(m.data)
       if (ev.kind === "state") {
@@ -30,7 +31,7 @@ export function useNetmedic() {
         return
       }
       dispatch(ev)
-      notify(ev)
+      if (ev.ts >= since - 1) notify(ev)
       if (ev.kind === "incident_closed") loadReports()
     }
     loadReports()

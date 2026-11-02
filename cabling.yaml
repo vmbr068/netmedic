@@ -1,0 +1,4 @@
+# Expected physical cabling, given to Rack Vision as ground truth (see docs/setup.md).
+# Demo switch SW-MUL-TIU-LAB: ports 1-8 carry unrelated cables; port 13 carries the lab's edge1 <-> core1 link.
+cabling:
+  - {device: SW-MUL-TIU-LAB, port: 13, router: edge1, interface: to-core1}
