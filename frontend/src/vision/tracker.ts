@@ -8,7 +8,7 @@ export type Transform = { s: number; bx: number; by: number }
 export type Box = [number, number, number, number]
 
 export const ident = (): Transform => ({ s: 1, bx: 0, by: 0 })
-export const compose = (A: Transform, B: Transform): Transform => ({ s: A.s * B.s, bx: A.s * B.bx + A.bx, by: A.s * B.by + A.by })
+const compose = (A: Transform, B: Transform): Transform => ({ s: A.s * B.s, bx: A.s * B.bx + A.bx, by: A.s * B.by + A.by })
 export const inverse = (T: Transform): Transform => ({ s: 1 / T.s, bx: -T.bx / T.s, by: -T.by / T.s })
 export const apply = (T: Transform, x: number, y: number): [number, number] => [T.s * x + T.bx, T.s * y + T.by]
 export const applyBox = (T: Transform, b: Box | number[]): Box => [...apply(T, b[0], b[1]), ...apply(T, b[2], b[3])]

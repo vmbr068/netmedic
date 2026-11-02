@@ -66,6 +66,13 @@ Runbooks:
 """
 
 
+ONSITE_PROMPT = """
+On-site technician (request_rack_photo):
+- Use the photo findings as evidence. A cable you cannot plug back in yourself is a physical fix: put it in
+  `escalation` with what the photo showed (or that no photo came back), and keep fixing what you can.
+"""
+
+
 class Agent:
     def __init__(
         self,
@@ -98,6 +105,8 @@ class Agent:
             inventory=inv, notes=inventory.notes.strip() or "(none)",
             runbooks="\n".join(rb.render() for rb in runbooks) or "(none)",
         )
+        if toolbox.onsite:
+            self.system += ONSITE_PROMPT
 
     async def _complete(self, messages: list[dict[str, Any]]) -> Any:
         extra = {"reasoning_effort": self.tier.reasoning_effort} if self.tier.reasoning_effort else {}

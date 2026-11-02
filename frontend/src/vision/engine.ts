@@ -1,17 +1,18 @@
 // Rack Vision engine: camera, live SAM ports, deep scan, cable trace and the canvas overlay.
 // React only renders the controls; this keeps the 60 fps drawing loop out of React.
+import { post } from "@/lib/api"
 import { apply, applyBox, ident, inverse, Tracker, type Box, type Transform } from "./tracker"
 
-export type Kind = "empty" | "plugged"
+type Kind = "empty" | "plugged"
 export type Finding = {
   title: string; detail: string; severity: "info" | "warning" | "critical"; related?: string
   box: Box; anchors?: Box[]; verdict?: "confirmed" | "unclear" | "disputed" | "unverified"; verdict_note?: string
 }
-export type ScanResult = {
+type ScanResult = {
   summary: string; model: string; latency: number
   devices: { name: string; box: Box }[]; objects: { kind: Kind; box: Box }[]; findings: Finding[]
 }
-export type TraceInfo = { pending: boolean; start?: string; end?: string; note?: string; confidence?: number | null }
+type TraceInfo = { pending: boolean; start?: string; end?: string; note?: string; confidence?: number | null }
 export type Tone = "ok" | "warn" | "bad" | "info" | "idle"
 
 export type VisionState = {
@@ -32,11 +33,7 @@ const SEV = { critical: "#dc2626", warning: "#f59e0b", info: "#2563eb" }
 type Track = { kind: Kind; target: Box; shown: Box; alpha: number; dead: boolean }
 type Trace = TraceInfo & { space: "world" | "still"; at: [number, number]; pts: [number, number][]; t0: number }
 
-async function post(path: string, blob: Blob) {
-  const r = await fetch(path, { method: "POST", headers: { "content-type": "image/jpeg" }, body: blob })
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText)
-  return r.json()
-}
+const postImage = (path: string, blob: Blob) => post(path, blob, "image/jpeg")
 
 function iou(a: Box, b: Box) {
   const ix = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])), iy = Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]))
@@ -125,7 +122,7 @@ export class VisionEngine {
       try {
         const Mcap = { ...this.tracker.M }  // camera pose when the frame was taken
         const { blob } = await frameBlob(this.video, 960)
-        const res = await post("/api/vision/ports", blob)
+        const res = await postImage("/api/vision/ports", blob)
         if (!this.frozen && this.state.live) {
           this.ingest(res.objects, Mcap)
           this.tracker.ok = 1
@@ -153,7 +150,8 @@ export class VisionEngine {
   }
 
   // ---------- deep scan ----------
-  async scan(source?: HTMLImageElement) {
+  // `forRequest`: the photo answers a request from the agent, which receives the findings.
+  async scan(source?: HTMLImageElement, forRequest?: number) {
     if (this.state.scanning) return
     const src = source ?? (this.state.camera ? this.video : null)
     if (!src) return
@@ -164,7 +162,7 @@ export class VisionEngine {
       const { blob, canvas } = await frameBlob(src, 1280)
       this.frozen = canvas
       this.set({ frozen: true })
-      const scan: ScanResult = await post("/api/vision/scan", blob)
+      const scan: ScanResult = await postImage(forRequest != null ? `/api/vision/scan?for_request=${forRequest}` : "/api/vision/scan", blob)
       this.set({ scan })
       this.status("idle", `${scan.findings.length} finding${scan.findings.length === 1 ? "" : "s"} · ${scan.latency}s`)
     } catch (e) {
@@ -220,7 +218,7 @@ export class VisionEngine {
     const base = { space, at: toSpace(nx, ny), t0: performance.now() } as const
     this.setTrace({ ...base, pending: true, pts: [] })
     try {
-      const res = await post(`/api/vision/trace?x=${nx.toFixed(4)}&y=${ny.toFixed(4)}${port ? "&plugged=true" : ""}`, blob)
+      const res = await postImage(`/api/vision/trace?x=${nx.toFixed(4)}&y=${ny.toFixed(4)}${port ? "&plugged=true" : ""}`, blob)
       this.setTrace({ ...base, pending: false, start: res.start, end: res.end, note: res.note, confidence: res.confidence,
                       pts: res.path.map(([x, y]: [number, number]) => toSpace(x, y)), t0: performance.now() })
     } catch (e) {

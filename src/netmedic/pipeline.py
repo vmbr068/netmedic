@@ -12,6 +12,7 @@ from .agent import Agent
 from .config import Inventory, Settings
 from .events import Event, EventSink, noop_sink
 from .models import Diagnosis, Remediation
+from .onsite import OnsiteBroker
 from .remediate import Executor, Outcome
 from .report import render_report, save_report
 from .runbooks import load_runbooks
@@ -61,12 +62,13 @@ async def handle_incident(
     approve: Approver,
     on_event: EventSink = noop_sink,
     tier: int = 0,
+    onsite: OnsiteBroker | None = None,
 ) -> IncidentResult:
     """Apply every step of the plan in order, each verified (and rolled back) on its own.
     mode 'auto' applies low-risk steps on its own and asks `approve` for the rest;
     mode 'approval' always asks."""
     started = datetime.now()
-    agent = Agent(settings, inventory, Toolbox(pool), load_runbooks(settings.runbooks_dir), on_event=on_event, tier=tier)
+    agent = Agent(settings, inventory, Toolbox(pool, onsite=onsite), load_runbooks(settings.runbooks_dir), on_event=on_event, tier=tier)
     try:
         diagnosis = await asyncio.wait_for(agent.investigate(incident), settings.incident_timeout)
     except Exception as e:

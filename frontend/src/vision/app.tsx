@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import {
-  ActionButton, Badge, Button, ButtonGroup, CloseButton, Content, Heading, IllustratedMessage, ListView, ListViewItem, ProgressCircle,
+  ActionButton, Button, ButtonGroup, CloseButton, Content, Heading, IllustratedMessage, ListView, ListViewItem, ProgressCircle,
   Provider, StatusLight, Text, ToggleButton,
 } from "@react-spectrum/s2"
 import ChevronDown from "@react-spectrum/s2/icons/ChevronDown"
@@ -8,17 +8,20 @@ import ChevronUp from "@react-spectrum/s2/icons/ChevronUp"
 import ImageAdd from "@react-spectrum/s2/icons/ImageAdd"
 import CameraIllustration from "@react-spectrum/s2/illustrations/linear/Camera"
 import Path from "@react-spectrum/s2/icons/Path"
+import Camera from "@react-spectrum/s2/icons/Camera"
 import Target from "@react-spectrum/s2/icons/Target"
 import Video from "@react-spectrum/s2/icons/Video"
 import { iconStyle, style } from "@react-spectrum/s2/style" with { type: "macro" }
 import { Button as AriaButton } from "react-aria-components"
 
-import { Logo } from "@/dashboard/app"
+import { VARIANT } from "@/components/status"
+import { Logo } from "@/components/logo"
+import type { PhotoRequest, ServerEvent } from "@/lib/api"
 import { useColorScheme } from "@/lib/color-scheme"
 
 import { VisionEngine, type Finding, type Tone, type VisionState } from "./engine"
 
-const LIGHT = { ok: "positive", warn: "notice", bad: "negative", info: "informative", idle: "neutral" } as const satisfies Record<Tone, string>
+const LIGHT = { ...VARIANT, idle: "neutral" } as const satisfies Record<Tone, string>
 const SEV = { critical: "negative", warning: "notice", info: "informative" } as const satisfies Record<Finding["severity"], string>
 const VERDICT = {
   confirmed: ["SAM confirmed", "positive"],
@@ -48,17 +51,18 @@ function Vision() {
   }, [])
 
   const s = useSyncExternalStore(engine?.subscribe ?? noop, engine?.getState ?? initial)
+  const request = usePhotoRequest()
 
   const onFile = (f: File | undefined) => {
     if (!f || !engine) return
     const img = new Image()
-    img.onload = () => engine.scan(img)
+    img.onload = () => engine.scan(img, request?.id)
     img.src = URL.createObjectURL(f)
   }
   const shutter = () => {
     if (!engine) return
     if (s.frozen && s.scan) engine.resume()
-    else if (s.camera) engine.scan()
+    else if (s.camera) engine.scan(undefined, request?.id)
     else file.current?.click()
   }
   const upload = () => file.current?.click()
@@ -68,8 +72,9 @@ function Vision() {
       <video ref={video} playsInline autoPlay muted className={style({ position: "absolute", inset: 0, size: "full", objectFit: "contain" })} />
       <canvas ref={canvas} className={style({ position: "absolute", inset: 0, size: "full" })} />
 
-      <header className={style({ pointerEvents: "none", position: "absolute", top: 0, insetX: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 12 })}
+      <header className={style({ pointerEvents: "none", position: "absolute", top: 0, insetX: 0, zIndex: 1, display: "flex", flexDirection: "column", gap: 8, padding: 12 })}
               style={{ paddingTop: "max(env(safe-area-inset-top), 12px)" }}>
+       <div className={style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 })}>
         <a href="./" className={surface + " " + style({ display: "flex", alignItems: "center", gap: 8, paddingY: 4, paddingStart: 4, paddingEnd: 12, textDecoration: "none", font: "title-sm", borderRadius: "full" })}>
           <Logo size={28} />Rack Vision
         </a>
@@ -77,6 +82,8 @@ function Vision() {
           {s.scanning ? <><ProgressCircle size="S" isIndeterminate aria-label="Scanning" /><Text>{s.status.text}</Text></>
             : <StatusLight size="S" variant={LIGHT[s.status.tone]}>{s.status.text}</StatusLight>}
         </span>
+       </div>
+        {request && <RequestCard request={request} />}
       </header>
 
       {s.camera === false && !s.frozen && (
@@ -130,21 +137,61 @@ function Vision() {
   )
 }
 
+// Photos netmedic is waiting for, followed live on the event stream (replayed to a page opened late).
+// The one to answer: ?request=<id> from the link in the live incident, else the oldest.
+function usePhotoRequest(): PhotoRequest | null {
+  const [pending, setPending] = useState<PhotoRequest[]>([])
+  useEffect(() => {
+    const es = new EventSource("/api/events")
+    es.onmessage = (m) => {
+      const ev: ServerEvent = JSON.parse(m.data)
+      if (ev.kind === "vision_request") setPending((p) => [...p.filter((r) => r.id !== ev.data.id), ev.data])
+      else if (ev.kind === "vision_resolved") setPending((p) => p.filter((r) => r.id !== ev.data.id))
+      else if (ev.kind === "incident_opened") setPending([])
+    }
+    return () => es.close()
+  }, [])
+  const wanted = Number(new URLSearchParams(location.search).get("request"))
+  return pending.find((r) => r.id === wanted) ?? pending[0] ?? null
+}
+
+function RequestCard({ request }: { request: PhotoRequest }) {
+  return (
+    <div className={surface + " " + style({ display: "flex", alignItems: "start", gap: 12, padding: 12, font: "body-sm" })}>
+      <Camera styles={iconStyle({ color: "informative" })} />
+      <div className={style({ flexGrow: 1, minWidth: 0 })}>
+        <p className={style({ fontWeight: "bold", margin: 0 })}>netmedic needs a photo · {request.target}</p>
+        <p className={style({ color: "neutral-subdued", margin: 0 })}>{request.reason}</p>
+        <p className={style({ font: "body-xs", color: "neutral-subdued", marginTop: 4, marginBottom: 0 })}>Frame that port and scan: the result goes to the investigation.</p>
+      </div>
+    </div>
+  )
+}
+
 function TraceCard({ s, onClose }: { s: VisionState; onClose: () => void }) {
   const t = s.trace!
+  const [hidden, setHidden] = useState(false)
   return (
     <div className={surface + " " + style({ display: "flex", alignItems: "start", gap: 12, padding: 12, font: "body-sm" })}>
       {t.pending ? <ProgressCircle size="S" isIndeterminate aria-label="Tracing" /> : <Path styles={iconStyle({ color: "informative" })} />}
       <div className={style({ flexGrow: 1, minWidth: 0 })}>
         {t.pending ? <p className={style({ fontWeight: "bold", margin: 0 })}>Tracing…</p> : (
           <>
-            <p className={style({ fontWeight: "bold", margin: 0 })}>{t.start || "Cable"}</p>
-            <p className={style({ color: "neutral-subdued", margin: 0 })}>→ {t.end || "End not visible"}</p>
-            {t.note && <p className={style({ font: "body-xs", color: "neutral-subdued", marginTop: 2, marginBottom: 0 })}>{t.note}</p>}
+            <p className={style({ fontWeight: "bold", margin: 0, truncate: true })}>{t.start || "Cable"}</p>
+            {!hidden && (
+              <>
+                <p className={style({ color: "neutral-subdued", margin: 0 })}>→ {t.end || "End not visible"}{typeof t.confidence === "number" && ` · ${Math.round(t.confidence * 100)}%`}</p>
+                {t.note && <p className={style({ font: "body-xs", color: "neutral-subdued", marginTop: 2, marginBottom: 0 })}>{t.note}</p>}
+              </>
+            )}
           </>
         )}
       </div>
-      {typeof t.confidence === "number" && <Badge size="S" variant="neutral">{Math.round(t.confidence * 100)}%</Badge>}
+      {!t.pending && (
+        <ActionButton isQuiet size="S" onPress={() => setHidden(!hidden)} styles={style({ flexShrink: 0 })}>
+          {hidden ? <ChevronUp /> : <ChevronDown />}<Text>{hidden ? "Show" : "Hide"}</Text>
+        </ActionButton>
+      )}
       <CloseButton size="S" onPress={onClose} aria-label="Close" />
     </div>
   )

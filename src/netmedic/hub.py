@@ -26,11 +26,15 @@ class EventHub:
         # Events of the current/last incident, replayed to late subscribers. "state" is kept apart.
         self._history: deque[str] = deque(maxlen=history)
         self._state: str | None = None
+        self._state_content: str | None = None
 
     async def publish(self, event: Event) -> None:
         message = json.dumps(_slim(event), default=str)
         if event.kind == "state":
-            self._state = message
+            content = json.dumps(event.data, default=str, sort_keys=True)
+            if content == self._state_content:  # nothing changed since the last probe
+                return
+            self._state, self._state_content = message, content
         else:
             if event.kind == "incident_opened":
                 self._history.clear()

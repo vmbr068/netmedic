@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import {
-  Button, ButtonGroup, Content, Disclosure, DisclosurePanel, DisclosureTitle, Heading, InlineAlert, ProgressCircle,
+  Button, ButtonGroup, Content, Disclosure, DisclosurePanel, DisclosureTitle, Heading, InlineAlert, LinkButton,
+  ProgressCircle, Text,
 } from "@react-spectrum/s2"
+import Camera from "@react-spectrum/s2/icons/Camera"
 import AIMark from "@react-spectrum/s2/icons/AIMark"
 import AlertTriangle from "@react-spectrum/s2/icons/AlertTriangle"
 import Checkmark from "@react-spectrum/s2/icons/Checkmark"
@@ -14,7 +16,7 @@ import Tools from "@react-spectrum/s2/icons/Tools"
 import Undo from "@react-spectrum/s2/icons/Undo"
 import { iconStyle, style } from "@react-spectrum/s2/style" with { type: "macro" }
 
-import { ToneBadge, VARIANT } from "@/components/status"
+import { ToneBadge, ToneLight, VARIANT } from "@/components/status"
 import { api, fmtDur, hhmmss, titleCase } from "@/lib/api"
 import { STAGES, type FeedItem, type Incident, type StepIcon, type Tone } from "@/lib/incident"
 
@@ -58,7 +60,7 @@ export function Stepper({ incident }: { incident: Incident }) {
   )
 }
 
-export function useElapsed(incident: Incident) {
+function useElapsed(incident: Incident) {
   const [now, setNow] = useState(Date.now() / 1000)
   useEffect(() => {
     if (!incident.active) return
@@ -169,6 +171,30 @@ function Item({ item }: { item: FeedItem }) {
       const bold = item.icon === "committed" || item.icon === "rollback" || item.icon === "escalate"
       return <Row icon={ICON[item.icon]} tone={item.tone} ts={item.ts}><p className={bold ? strong : style({ margin: 0 })}>{item.text}</p></Row>
     }
+    case "photo":
+      return (
+        <InlineAlert variant={item.state === "missed" ? "notice" : "informative"} styles={style({ marginY: 8 })}>
+          <Heading>Rack Vision photo · {item.target}</Heading>
+          <Content>
+            <p className={style({ margin: 0 })}>{item.reason}</p>
+            {item.state === "waiting" && (
+              <div className={style({ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" })}>
+                <LinkButton href={`./vision?request=${item.id}`} target="_blank" size="S" variant="accent"><Camera /><Text>Open Rack Vision</Text></LinkButton>
+                <span className={style({ display: "flex", alignItems: "center", gap: 8, font: "ui-sm", color: "neutral-subdued" })}>
+                  <ProgressCircle size="S" isIndeterminate aria-label="Waiting for the photo" />Waiting for the technician
+                </span>
+              </div>
+            )}
+            {item.state !== "waiting" && (
+              <div className={style({ marginTop: 8 })}>
+                <ToneLight size="S" tone={item.state === "received" ? "ok" : "warn"}>
+                  {item.state === "received" ? `Photo analysed · ${item.summary}` : "No photo received"}
+                </ToneLight>
+              </div>
+            )}
+          </Content>
+        </InlineAlert>
+      )
     case "closed":
       return (
         <InlineAlert variant={VARIANT[item.tone]} styles={style({ marginY: 8 })}>

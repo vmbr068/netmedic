@@ -6,15 +6,15 @@ import { IncidentFeed, IncidentMeta, Stepper } from "@/components/incident-feed"
 import { Panel, PanelHeader, panelBody } from "@/components/panel"
 import { StatusText, ToneBadge, ToneLight } from "@/components/status"
 import { Topology } from "@/components/topology"
-import { fmtDur, model, reportTime, reportTone, titleCase, type Model } from "@/lib/api"
+import { fmtDur, reportTime, reportTone, titleCase, type Model } from "@/lib/api"
 import type { Netmedic } from "@/lib/use-netmedic"
 
 import type { Go } from "./app"
 
 
 export function OverviewPage({ nm, onDevice, go }: { nm: Netmedic; onDevice: (name: string) => void; go: Go }) {
-  if (!nm.snapshot) return <Loading />
-  const s = nm.snapshot, m = model(s)
+  if (!nm.snapshot || !nm.net) return <Loading />
+  const s = nm.snapshot, m = nm.net
   const day = nm.reports.filter((r) => Date.now() - (reportTime(r.name)?.getTime() ?? 0) < 86_400_000)
   const handled = day.filter((r) => reportTone(r.status) !== "bad")
   const timed = handled.filter((r) => r.duration != null)

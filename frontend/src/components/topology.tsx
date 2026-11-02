@@ -7,9 +7,11 @@ import type { Device, Model, Snapshot } from "@/lib/api"
 type Point = [number, number]
 
 // Layered layout when the inventory gives each router a layer (edge / core / access), ring otherwise.
-function layout(devices: Device[], w: number, h: number): Record<string, Point> {
+const isLayered = (devices: Device[]) => devices.length > 0 && devices.every((d) => d.layer != null)
+
+function layout(devices: Device[], w: number, h: number, layered: boolean): Record<string, Point> {
   const pos: Record<string, Point> = {}
-  if (devices.length && devices.every((d) => d.layer != null)) {
+  if (layered) {
     const layers = [...new Set(devices.map((d) => d.layer!))].sort((a, b) => a - b)
     const top = h * 0.16, bottom = h * 0.84
     layers.forEach((layer, li) => {
@@ -65,15 +67,17 @@ function Graph({
 }: {
   m: Model; snapshot: Snapshot; width: number; height: number; selected?: string | null; onSelect?: (name: string) => void
 }) {
-  const pos = layout(m.devices, width, height)
+  const layered = isLayered(m.devices)
+  const pos = layout(m.devices, width, height, layered)
   // Shrink the cards when the widest layer would not fit side by side (phones).
   const perLayer = new Map<number, number>()
   m.devices.forEach((d) => d.layer != null && perLayer.set(d.layer, (perLayer.get(d.layer) ?? 0) + 1))
   const widest = Math.max(1, ...perLayer.values())
-  const NW = m.devices.every((d) => d.layer != null) ? Math.min(164, Math.floor(width / (widest + 1)) - 8) : 164, NH = 56
+  const NW = layered ? Math.min(164, Math.floor(width / (widest + 1)) - 8) : 164, NH = 56
   const compact = NW < 150
   const ER = 26  // external AS bubble radius
-  const layered = m.devices.length > 0 && m.devices.every((d) => d.layer != null)
+  const peersOf = new Map<string, typeof m.externals>()
+  m.externals.forEach((e) => peersOf.set(e.router, [...(peersOf.get(e.router) ?? []), e]))
   const cx = width / 2, cy = height / 2
 
   return (
@@ -102,7 +106,7 @@ function Graph({
       {m.externals.map((e) => {
         const [rx, ry] = pos[e.router] || [cx, cy]
         // Fan the peers of one router symmetrically around the outward axis (a lone peer sits on it).
-        const mine = m.externals.filter((x) => x.router === e.router)
+        const mine = peersOf.get(e.router)!
         const k = mine.indexOf(e)
         // Layered layout: straight out sideways (or up for a centred router), so it looks the same at any panel size.
         // Ring layout: radially away from the centre.

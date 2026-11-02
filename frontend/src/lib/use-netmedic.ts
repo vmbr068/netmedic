@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react"
 import { ToastQueue } from "@react-spectrum/s2"
 
 import { api, model, titleCase, type Report, type ServerEvent, type Snapshot } from "./api"
 import { emptyIncident, reduce } from "./incident"
-
-export type Connection = "connecting" | "live" | "lost"
 
 // One connection to the server-sent events of `netmedic watch`, shared by every page.
 export function useNetmedic() {
@@ -12,7 +10,6 @@ export function useNetmedic() {
   const [incident, dispatch] = useReducer(reduce, emptyIncident)
   const [reports, setReports] = useState<Report[]>([])
   const [health, setHealth] = useState<number[]>([])
-  const [connection, setConnection] = useState<Connection>("connecting")
   const lastHealth = useRef(0)
 
   const loadReports = useCallback(async () => {
@@ -21,8 +18,6 @@ export function useNetmedic() {
 
   useEffect(() => {
     const es = new EventSource("/api/events")
-    es.onopen = () => setConnection("live")
-    es.onerror = () => setConnection("lost")
     es.onmessage = (m) => {
       const ev: ServerEvent = JSON.parse(m.data)
       if (ev.kind === "state") {
@@ -42,7 +37,10 @@ export function useNetmedic() {
     return () => es.close()
   }, [loadReports])
 
-  return { snapshot, incident, reports, health, connection, loadReports }
+  // The derived network model, shared by every page (recomputed only when the snapshot changes).
+  const net = useMemo(() => snapshot && model(snapshot), [snapshot])
+
+  return { snapshot, net, incident, reports, health }
 }
 
 function notify(ev: ServerEvent) {

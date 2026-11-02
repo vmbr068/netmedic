@@ -27,8 +27,6 @@ export function IncidentsPage({ nm, report, onReport }: { nm: Netmedic; report: 
   }, [report, nm.reports])
   const shown = nm.reports.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
-  const { loadReports } = nm
-  useEffect(() => { loadReports() }, [loadReports])
   useEffect(() => {
     if (!current) return
     setHtml(null)

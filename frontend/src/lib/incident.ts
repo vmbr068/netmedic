@@ -4,8 +4,8 @@ import type { ServerEvent } from "./api"
 export const STAGES = ["Detected", "Investigating", "Plan", "Applying", "Verified"] as const
 
 export type Remediation = { title: string; risk: string; root_cause: string; description: string; actions: unknown[] }
-export type Diagnosis = { summary: string; root_cause: string; plan: Remediation[]; alternatives: { title: string }[]; escalation?: string }
-export type Usage = { model: string; llm_calls: number; tool_calls: number; tokens: number; cost_usd: number }
+type Diagnosis = { summary: string; root_cause: string; plan: Remediation[]; alternatives: { title: string }[]; escalation?: string }
+type Usage = { model: string; llm_calls: number; tool_calls: number; tokens: number; cost_usd: number }
 
 export type Tone = "info" | "warn" | "ok" | "bad"
 export type StepIcon = "decision" | "action" | "pass" | "fail" | "committed" | "rollback" | "error" | "escalate"
@@ -19,6 +19,7 @@ export type FeedItem =
   | { type: "approval"; ts: number; id: number; remediation: Remediation; approved: boolean | null }
   | { type: "step"; ts: number; tone: Tone; icon: StepIcon; text: string }
   | { type: "closed"; ts: number; status: string; tone: Tone }
+  | { type: "photo"; ts: number; id: number; target: string; reason: string; state: "waiting" | "received" | "missed"; summary: string }
 
 export type Incident = {
   active: boolean
@@ -60,6 +61,11 @@ export function reduce(inc: Incident, ev: ServerEvent): Incident {
       return add({ type: "approval", ts, id: d.id, remediation: d.remediation, approved: null })
     case "approval_resolved":
       return { ...inc, feed: inc.feed.map((f) => (f.type === "approval" && f.id === d.id ? { ...f, approved: d.approved } : f)) }
+    case "vision_request":
+      return add({ type: "photo", ts, id: d.id, target: d.target, reason: d.reason, state: "waiting", summary: "" }, { stage: at(1) })
+    case "vision_resolved":
+      return { ...inc, feed: inc.feed.map((f) => (f.type === "photo" && f.id === d.id
+        ? { ...f, state: d.ok ? "received" : "missed", summary: d.summary ?? "" } : f)) }
     case "check":
       return add({ type: "step", ts, tone: d.ok ? "ok" : "bad", icon: d.ok ? "pass" : "fail", text: d.text })
     case "usage":

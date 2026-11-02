@@ -142,6 +142,7 @@ def watch(
     import uvicorn
 
     from .approvals import ApprovalBroker
+    from .onsite import OnsiteBroker
     from .config import load_secrets
     from .hub import EventHub
     from .server import create_app
@@ -158,7 +159,8 @@ def watch(
             await _render(event)
 
         broker = ApprovalBroker(on_event=sink)
-        watcher = Watcher(settings, inventory, pool, broker, on_event=sink)
+        onsite = OnsiteBroker(on_event=sink)
+        watcher = Watcher(settings, inventory, pool, broker, on_event=sink, onsite=onsite)
 
         host, port, token, ssl, ca = settings.server.host, settings.server.port, None, {}, None
         if lan:
@@ -175,7 +177,7 @@ def watch(
         from .vision import RackVision
 
         server = uvicorn.Server(uvicorn.Config(
-            create_app(watcher, hub, broker, token=token, ca_cert=ca, vision=RackVision(settings)),
+            create_app(watcher, hub, broker, token=token, ca_cert=ca, vision=RackVision(settings), onsite=onsite),
             host=host, port=port, log_level="warning", **ssl,
         ))
         if lan:

@@ -7,11 +7,7 @@ export type External = { router: string; proto: string; neighbor: string; asn: n
 export type Symptom = { text: string; kind: string; acknowledged: boolean }
 
 export type Snapshot = {
-  healthy: boolean
-  busy: boolean
   mode: "auto" | "approval"
-  baseline_learned: boolean
-  settling: boolean
   routers: Record<string, RouterInfo>
   sessions: Record<string, Record<string, string>>
   links: Link[]
@@ -54,8 +50,12 @@ export function model(s: Snapshot): Model {
   return { devices, links: s.links || [], externals: s.externals || [], online, sessUp, sessTotal, score }
 }
 
-async function send(path: string, body: unknown) {
-  const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+// A Rack Vision photo the agent is waiting for during an investigation.
+export type PhotoRequest = { id: number; router: string; interface: string; reason: string; target: string }
+
+// POST to the API; errors carry the server's `detail`.
+export async function post(path: string, body: unknown, contentType = "application/json") {
+  const r = await fetch(path, { method: "POST", headers: { "content-type": contentType }, body: body instanceof Blob ? body : JSON.stringify(body) })
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText)
   return r.json()
 }
@@ -63,9 +63,9 @@ async function send(path: string, body: unknown) {
 export const api = {
   reports: async (): Promise<Report[]> => (await fetch("/api/reports")).json(),
   report: async (name: string): Promise<string> => (await fetch(`/api/reports/${name}`)).text(),
-  setMode: (mode: string) => send("/api/mode", { mode }),
-  approve: (id: number, approve: boolean) => send(`/api/approvals/${id}`, { approve }),
-  alert: (summary: string) => send("/api/alerts", { summary }),
+  setMode: (mode: string) => post("/api/mode", { mode }),
+  approve: (id: number, approve: boolean) => post(`/api/approvals/${id}`, { approve }),
+  alert: (summary: string) => post("/api/alerts", { summary }),
 }
 
 export const fmtDur = (s: number | null | undefined) =>

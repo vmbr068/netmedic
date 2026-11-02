@@ -4,14 +4,14 @@ import { style } from "@react-spectrum/s2/style" with { type: "macro" }
 import { Panel, PanelHeader, panelBody } from "@/components/panel"
 import { StatusText, ToneBadge } from "@/components/status"
 import { Topology } from "@/components/topology"
-import { model, type Device } from "@/lib/api"
+import type { Device } from "@/lib/api"
 import type { Netmedic } from "@/lib/use-netmedic"
 
 import { Loading } from "./overview"
 
 export function TopologyPage({ nm, selected, onSelect }: { nm: Netmedic; selected: string; onSelect: (name: string) => void }) {
-  if (!nm.snapshot) return <Loading />
-  const s = nm.snapshot, m = model(s)
+  if (!nm.snapshot || !nm.net) return <Loading />
+  const s = nm.snapshot, m = nm.net
   const device = m.devices.find((d) => d.name === selected) ?? m.devices[0]
 
   return (
@@ -30,10 +30,10 @@ const label = style({ font: "detail-sm", color: "neutral-subdued", margin: 0 })
 
 function DeviceDetail({ d, sessions }: { d: Device; sessions: Record<string, string> }) {
   const rows: [string, React.ReactNode][] = [
-    ["Status", <StatusText status={d.status} />],
+    ["Status", <StatusText key="status" status={d.status} />],
     ["Role", d.role ? d.role[0].toUpperCase() + d.role.slice(1) : "–"],
     ["ASN", d.asn != null ? `AS${d.asn}` : "–"],
-    ["Loopback", <span className={style({ font: "code-sm" })}>{d.loopback ?? "–"}</span>],
+    ["Loopback", <span key="loopback" className={style({ font: "code-sm" })}>{d.loopback ?? "–"}</span>],
     ["Sessions", `${d.up}/${d.total}`],
   ]
   return (

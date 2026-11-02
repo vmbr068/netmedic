@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .ssh import RouterPool
+
+if TYPE_CHECKING:
+    from .onsite import OnsiteBroker
 
 _NAME = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 _HOST = re.compile(r"^[A-Za-z0-9.-]{1,253}$")
@@ -50,6 +53,8 @@ class Tool:
     description: str
     parameters: dict[str, Any]
     build: Callable[[dict[str, Any]], list[str]]
+    # Tools that do not run on the router (e.g. asking a human) provide `run` instead of an argv.
+    run: Callable[[dict[str, Any]], Awaitable[str]] | None = None
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -182,10 +187,29 @@ DIAGNOSTIC_TOOLS: list[Tool] = [
 ]
 
 
+def photo_tool(onsite: OnsiteBroker) -> Tool:
+    """Ask the on-site technician for a Rack Vision photo (offered only by `netmedic watch`)."""
+    return Tool(
+        "request_rack_photo",
+        "Ask the on-site technician to photograph the rack around a router port with Rack Vision, and wait "
+        "for the analysed photo (unplugged or loose cable, wrong port, link LED off). Use it once, when a link "
+        "is down at layer 1 (interface DOWN / NO-CARRIER / LOWERLAYERDOWN) and the configuration does not explain it.",
+        _params(
+            interface={**_STR, "description": "Interface whose cable must be checked, e.g. to-core1"},
+            reason={**_STR, "description": "Short evidence shown to the technician, e.g. 'to-core1 NO-CARRIER on both ends'"},
+        ),
+        build=lambda a: [],
+        run=lambda a: onsite.request(a["router"], _name(a["interface"], "interface"), str(a["reason"])[:200]),
+    )
+
+
 class Toolbox:
-    def __init__(self, pool: RouterPool, tools: list[Tool] | None = None):
+    def __init__(self, pool: RouterPool, tools: list[Tool] | None = None, onsite: OnsiteBroker | None = None):
         self.pool = pool
         self.tools = {t.name: t for t in (tools or DIAGNOSTIC_TOOLS)}
+        self.onsite = onsite
+        if onsite:
+            self.tools["request_rack_photo"] = photo_tool(onsite)
 
     def schemas(self) -> list[dict[str, Any]]:
         return [t.schema() for t in self.tools.values()]
@@ -198,6 +222,8 @@ class Toolbox:
         if router not in self.pool.inventory.routers:
             return f"error: unknown router {router!r}; known: {', '.join(self.pool.inventory.routers)}"
         try:
+            if tool.run:
+                return await tool.run(args)
             argv = tool.build(args)
         except (ToolError, KeyError, TypeError, ValueError) as e:
             return f"error: {e}"

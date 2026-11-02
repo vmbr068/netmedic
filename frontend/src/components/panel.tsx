@@ -13,8 +13,8 @@ const panel = style({
   overflow: "hidden",
 })
 
-export function Panel({ children, className, styleOverride }: { children: React.ReactNode; className?: string; styleOverride?: React.CSSProperties }) {
-  return <section className={panel + (className ? " " + className : "")} style={styleOverride}>{children}</section>
+export function Panel({ children }: { children: React.ReactNode }) {
+  return <section className={panel}>{children}</section>
 }
 
 export function PanelHeader({ title, description, actions }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode }) {

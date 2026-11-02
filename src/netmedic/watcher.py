@@ -18,6 +18,7 @@ from dataclasses import dataclass
 
 from .config import Inventory, Settings
 from .events import Event, EventSink, noop_sink
+from .onsite import OnsiteBroker
 from .pipeline import Approver, handle_incident
 from .ssh import RouterPool
 
@@ -58,12 +59,14 @@ class Watcher:
         pool: RouterPool,
         approve: Approver,
         on_event: EventSink = noop_sink,
+        onsite: OnsiteBroker | None = None,
     ):
         self.settings = settings
         self.cfg = settings.watch
         self.inventory = inventory
         self.pool = pool
         self.approve = approve
+        self.onsite = onsite
         self.on_event = on_event
         self.alerts: asyncio.Queue[str] = asyncio.Queue()
         self.baseline: dict[str, dict[str, str]] | None = None
@@ -185,7 +188,8 @@ class Watcher:
         await self.on_event(Event("incident_opened", {"text": text, "tier": tier}))
         try:
             result = await handle_incident(
-                text, self.settings, self.inventory, self.pool, self.cfg.mode, self.approve, self.on_event, tier=tier
+                text, self.settings, self.inventory, self.pool, self.cfg.mode, self.approve, self.on_event, tier=tier,
+                onsite=self.onsite,
             )
             self._ack_next = result.escalated or not result.diagnosis.plan
             return result.resolved

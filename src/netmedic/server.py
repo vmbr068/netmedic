@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from .approvals import ApprovalBroker
 from .events import Event
 from .hub import EventHub
+from .onsite import OnsiteBroker
 from .vision import RackVision, load_cabling, network_context
 from .watcher import Watcher
 
@@ -64,6 +65,7 @@ def create_app(
     token: str | None = None,
     ca_cert: Path | None = None,
     vision: RackVision | None = None,
+    onsite: OnsiteBroker | None = None,
 ) -> FastAPI:
     """`token`: if set, required for everything except /ca.crt — via ?token= on the first visit
     (then a cookie, so EventSource works), a cookie, or an `Authorization: Bearer` header."""
@@ -105,7 +107,7 @@ def create_app(
     async def favicon() -> FileResponse:
         return FileResponse(WEB_DIR / "favicon.svg")
 
-    # Built by `npm run build` in frontend/ (React + shadcn/ui), shipped in the package.
+    # Built by `npm run build` in frontend/ (React + Adobe Spectrum 2), shipped in the package.
     app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets", check_dir=False), name="assets")
 
     async def _image(request: Request) -> tuple[bytes, str]:
@@ -134,12 +136,20 @@ def create_app(
         return await vision.trace(image, x, y, mime, plugged)
 
     @app.post("/api/vision/scan")
-    async def vision_scan(request: Request) -> dict[str, Any]:
-        """Deep pass (Muse Spark vision + SAM 3.1), cross-checked with the live network state."""
+    async def vision_scan(request: Request, for_request: int | None = None) -> dict[str, Any]:
+        """Deep pass (Muse Spark vision + SAM 3.1), cross-checked with the live network state.
+        `for_request`: answers a photo request from the agent, which gets the findings."""
+        req = onsite.get(for_request) if onsite and for_request is not None else None
+        if for_request is not None and req is None:
+            raise HTTPException(404, "no such pending photo request")
         image, mime = await _image(request)
-        result = await vision.scan(image, network_context(watcher.snapshot(), load_cabling()), mime)
-        await hub.publish(Event("vision", {"text": f"Rack Vision: {result['summary']}",
-                                           "findings": len(result["findings"])}))
+        context = network_context(watcher.snapshot(), load_cabling())
+        if req:
+            context = f"netmedic asked for this photo to check {req.target}: {req.reason}\n{context}"
+        result = await vision.scan(image, context, mime)
+        if not (req and onsite.resolve(req.id, result)):  # plain scan, or the agent stopped waiting meanwhile
+            await hub.publish(Event("vision", {"text": f"Rack Vision: {result['summary']}",
+                                               "findings": len(result["findings"])}))
         return result
 
     @app.get("/api/events")

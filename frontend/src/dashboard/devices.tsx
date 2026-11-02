@@ -2,14 +2,13 @@ import { Cell, Column, Row, TableBody, TableHeader, TableView } from "@react-spe
 import { style } from "@react-spectrum/s2/style" with { type: "macro" }
 
 import { StatusText, ToneBadge } from "@/components/status"
-import { model } from "@/lib/api"
 import type { Netmedic } from "@/lib/use-netmedic"
 
 import { Loading } from "./overview"
 
 export function DevicesPage({ nm, onDevice }: { nm: Netmedic; onDevice: (name: string) => void }) {
-  if (!nm.snapshot) return <Loading />
-  const m = model(nm.snapshot)
+  if (!nm.net) return <Loading />
+  const m = nm.net
   return (
     <TableView aria-label="Devices" onAction={(k) => onDevice(String(k))} styles={style({ height: "[calc(100vh - 160px)]", minHeight: 320 })}>
       <TableHeader>
