@@ -41,7 +41,7 @@ reversible path, and hands a human exactly what it cannot fix itself.
 
 ## Demo
 
-DEMO_VIDEO
+▶ **3-minute demo video: coming soon.**
 
 ## How it works
 
@@ -75,7 +75,20 @@ A typical incident costs **$0.002–0.016** (contributor tier, 40–70 % cached 
 `netmedic eval` replays every chaos scenario of the enterprise lab through the real watcher, in
 auto mode, and checks that the network is back to its baseline within 5 minutes.
 
-EVAL_TABLE
+| Scenario | What breaks | Success | Resolve (median) | Cost/run |
+|---|---|---|---|---|
+| failover-broken | ISP outage + latent typo in the backup filter | 2/2 | 71 s | $0.004 |
+| meltdown | three faults at once | 2/2 | 109 s | $0.007 |
+| ospf-mtu | MTU mismatch, OSPF stuck in ExStart | 2/2 | 83 s | $0.008 |
+| rr-client | every `rr client` dropped on both reflectors | 2/2 | 252 s | $0.014 |
+| branch-limit | import limit hit on the branch session | 2/2 | 45 s | $0.004 |
+| dns-service / dns-firewall | DNS stopped / blocked on dc1 | 4/4 | 53–58 s | $0.002–0.003 |
+| nexthop-self | `next hop self` removed on edge1 | 1/2 | 195 s | $0.011 |
+
+**15/16 runs resolved (94 %)**, detection in 10–15 s. The one failure taught us something: a
+fix passed its checks while also renaming a BGP session — the executor now refuses that.
+The physical `cable-unplug` scenario is measured separately: photo requested 8–18 s after
+detection, escalated with the right port in under a minute, 4/4.
 
 Details and methodology: [docs/evaluation.md](docs/evaluation.md).
 

@@ -35,6 +35,7 @@ from .ssh import CommandResult, RouterPool
 
 AGENT_DIR = "/var/lib/netagent"
 _FILE = re.compile(r"^[A-Za-z0-9_-]{1,64}\.conf$")
+_PROTOCOL = re.compile(r"^\s*protocol\s+\w+(?:\s+v[23])?\s+(\w+)", re.M)  # name, after an optional OSPF version
 _IDENT = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 PROTECTED_TABLES = {"nixos-fw"}
 
@@ -123,7 +124,13 @@ class Executor:
             return _nothing
         if count != 1:
             raise RemediationError(f"{a.router}:{path}: snippet to replace found {count} times (expected 1)")
-        await self._write_file(a.router, path, original.replace(a.find, a.replace, 1))
+        updated = original.replace(a.find, a.replace, 1)
+        # Renaming or removing a protocol passes every check yet silently changes the network's
+        # identity (monitoring baselines, peers' expectations): never allowed.
+        gone = set(_PROTOCOL.findall(original)) - set(_PROTOCOL.findall(updated))
+        if gone:
+            raise RemediationError(f"{a.router}:{path}: edit would rename or remove protocol(s) {', '.join(sorted(gone))}")
+        await self._write_file(a.router, path, updated)
 
         async def restore() -> None:
             await self._write_file(a.router, path, original)
