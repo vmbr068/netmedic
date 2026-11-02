@@ -1,110 +1,121 @@
-# netmedic
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.png">
+    <img src="docs/banner-light.png" alt="netmedic" width="520">
+  </picture>
+</p>
 
-> An on-call network engineer that never sleeps: it **detects** network incidents, **investigates** them
-> with real router tools, **fixes** what it safely can — with automatic rollback — and, when a cable is
-> the problem, **asks the technician for a photo** and reads the rack with Meta's vision models.
+<p align="center">
+  <b>An AI on-call network engineer.</b><br>
+  It detects incidents, investigates them with real router tools, fixes what it safely can — with automatic rollback —<br>
+  and when the problem is a cable, it asks the technician for a photo and reads the rack.
+</p>
 
-Built for the **Meta Global AI Developer Hackathon** (Oct 27 – Nov 4, 2026), track *Build for Your World*.
-**Everything in this repository was written during the hackathon** (first commit: Oct 27).
+<p align="center">
+  <img alt="Muse Spark" src="https://img.shields.io/badge/Meta-Muse%20Spark%201.3-0866FF">
+  <img alt="SAM 3.1" src="https://img.shields.io/badge/Meta-SAM%203.1-0866FF">
+  <img alt="Muse Wonder" src="https://img.shields.io/badge/Meta-Muse%20Wonder-0866FF">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.12-3776AB">
+  <img alt="React Spectrum" src="https://img.shields.io/badge/UI-React%20Spectrum%202-EB1000">
+  <img alt="BIRD" src="https://img.shields.io/badge/lab-BIRD%203%20on%20NixOS-5277C3">
+</p>
 
-![netmedic dashboard](docs/dashboard.png)
+<p align="center">
+  <a href="#demo">Demo</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#results">Results</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/architecture.md">Architecture</a>
+</p>
+
+![netmedic dashboard during an incident](docs/dashboard.png)
 
 ## Why
 
-Network outages are still debugged by a human reading `show` commands at 3 AM. The fix is often
-small (a typo in a filter, a wrong MTU, a cable), but finding it takes an hour, and touching a
-production router without a safety net is how small outages become big ones. netmedic does the
-investigation in about a minute and only changes a router through a verified, reversible path.
+Network outages are still debugged by a person reading `show` commands at 3 AM. The fix is often
+small — a typo in a filter, a wrong MTU, a pulled cable — but finding it takes an hour, and
+touching a production router without a safety net is how small outages become big ones.
 
-## What it does
+netmedic finds the root cause in about a minute, changes a router only through a verified and
+reversible path, and hands a human exactly what it cannot fix itself.
 
-1. **Detect** — `netmedic watch` probes every router every 5 s (BGP/OSPF sessions, best paths,
-   reachability, DNS) and compares with a learned baseline. A symptom must persist two probes.
-2. **Investigate** — Muse Spark runs a tool-calling loop over 14 read-only, validated tools
-   (`birdc`, interfaces, routes, ping, traceroute, DNS, nftables…), guided by YAML runbooks,
-   checking both ends of every link, and submits a structured diagnosis: root cause, evidence,
-   an ordered plan (one fix per root cause) and alternatives.
-3. **Fix safely** — each step is a typed action applied with a backup, `birdc configure check`,
-   `configure timeout` (BIRD reverts by itself), typed post-checks, then `confirm` — or an
-   automatic rollback. Low-risk steps run on their own in *auto* mode; everything else waits
-   for a human approval in the web UI.
-4. **Escalate the physical world** — when a link has no carrier and nothing in the config explains
-   it, the agent calls `request_rack_photo`: the technician gets the request on their phone, points
-   it at the rack, and **Rack Vision** (Muse Spark vision + SAM 3.1) returns the findings to the
-   agent, which escalates the exact port to re-plug.
-5. **Report** — every incident ends with a Markdown root-cause report and its full timeline.
+## Demo
 
-## Meta models
+DEMO_VIDEO
 
-| Model | Where | Why |
-|---|---|---|
-| **Muse Spark 1.3** (tool calling, structured output) | `agent.py` | Investigation loop and diagnosis. An escalation ladder retries a failed incident with higher reasoning effort, then **Muse Wonder** |
-| **Muse Spark vision** | `vision.py` | Reads the rack photo with the live network state as context, and follows a cable from a tapped port |
-| **SAM 3.1** | `vision.py` | Live port segmentation on the phone video (empty / plugged), and a cross-check of every "empty port" claim made by Spark, which hallucinated under prompt pressure before this check |
+## How it works
 
-Cost per incident: **$0.002–0.016** with the contributor tier and 40–70 % cached tokens.
+| | |
+|---|---|
+| **1. Detect** | Every 5 s, all routers are probed in parallel — BGP, OSPF, best paths, reachability, DNS — and compared with a baseline learned on the healthy network. Silent failures (routes lost while every session stays up) are caught too. |
+| **2. Investigate** | **Muse Spark** runs a tool-calling loop over 14 validated, read-only tools (`birdc`, interfaces, routes, ping, traceroute, DNS, nftables…), guided by YAML runbooks, checking both ends of every link. It submits a structured diagnosis: root cause, evidence, an ordered plan with one fix per root cause, alternatives, and an escalation for what is not ours to fix. |
+| **3. Fix safely** | Each step is a typed action with typed checks: snapshot, `birdc configure check`, `configure timeout` (BIRD reverts on its own), verify, then `confirm` — or automatic rollback. Low-risk steps run alone in *auto* mode; the rest wait for an approval in the UI. |
+| **4. See the rack** | When a link has no carrier and nothing in the config explains it, the agent calls `request_rack_photo`. The technician's phone shows the request; **Muse Spark vision** and **SAM 3.1** read the photo and the findings go back to the agent, which escalates the exact port to re-plug. |
+| **5. Report** | Every incident ends with a root-cause report: evidence, actions, checks, rollbacks, escalation, cost. |
 
-## Architecture
+<p align="center">
+  <img src="docs/rack-vision-request.png" alt="Photo request in the live incident" width="62%">
+  &nbsp;
+  <img src="docs/rack-vision-phone.png" alt="Rack Vision on the phone" width="28%">
+</p>
 
-```mermaid
-flowchart LR
-  subgraph lab[Lab: NixOS + BIRD routers in QEMU]
-    R[edge / core / dc / branch routers]
-  end
-  W[watch: probes vs baseline] -->|incident| A[Agent: Muse Spark + 14 tools + runbooks]
-  A -->|read-only SSH| R
-  A -->|request_rack_photo| P[Technician phone: Rack Vision]
-  P -->|Muse Spark vision + SAM 3.1| A
-  A --> D[Diagnosis: plan + alternatives + escalation]
-  D --> X[Executor: check, timeout, verify, confirm or rollback]
-  X -->|SSH| R
-  D --> H[Web UI: live feed, approvals, reports]
-```
+## Built with Meta AI
 
-- **Backend**: Python 3.12, `asyncssh`, FastAPI + server-sent events, Pydantic models.
-- **Web UI**: React + Adobe Spectrum 2 (dashboard, topology, incidents, approvals) and a mobile
-  Rack Vision page with an AR-style overlay (iPhone Safari, HTTPS on the LAN with a local CA).
-- **Lab**: 8 NixOS VMs running BIRD (OSPF, iBGP route reflectors, dual-homed upstreams, a branch),
-  a chaos script with realistic faults, and a virtual patch cord (`lab.sh cable … off`) that
-  produces a real NO-CARRIER.
+| Model | Used for |
+|---|---|
+| **Muse Spark 1.3** | The investigation loop: parallel tool calls, runbooks, structured diagnosis with a multi-step plan. A failed incident is retried with higher reasoning effort. |
+| **Muse Wonder** | Last tier of the escalation ladder for incidents Spark could not resolve. |
+| **Muse Spark vision** | Reads the rack photo with the live network state as context (symptoms, expected cabling), and follows a cable from a tapped port. |
+| **SAM 3.1** | Live port segmentation on the phone video (empty / plugged), and a cross-check of every "empty port" claim — added after catching Spark seeing the empty port it was told to look for. |
 
-## Evaluation
+A typical incident costs **$0.002–0.016** (contributor tier, 40–70 % cached tokens).
 
-`netmedic eval` replays every chaos scenario through the real watcher, in auto mode, and measures
-whether the network gets back to its baseline, how fast, and at what cost.
+## Results
+
+`netmedic eval` replays every chaos scenario of the enterprise lab through the real watcher, in
+auto mode, and checks that the network is back to its baseline within 5 minutes.
 
 EVAL_TABLE
+
+Details and methodology: [docs/evaluation.md](docs/evaluation.md).
 
 ## Quick start
 
 ```sh
-nix develop                                # python 3.12, uv, sops, node
-uv sync && (cd frontend && npm ci && npm run build)
-lab/lab.sh use enterprise && lab/lab.sh up # 8 router VMs
-META_API_KEY=... uv run netmedic watch     # http://127.0.0.1:8080
-lab/chaos.sh failover-broken               # or: lab/chaos.sh list
+nix develop && uv sync                     # Python 3.12, uv, sops, Node
+lab/lab.sh use enterprise && lab/lab.sh up # 8 BIRD routers in QEMU
+export META_API_KEY=...
+uv run netmedic watch                      # http://127.0.0.1:8080
+lab/chaos.sh failover-broken               # break something
 ```
 
-- `netmedic watch --lan` serves the UI over HTTPS on the LAN and prints a QR code for the phone.
-- `lab/chaos.sh cable-unplug` pulls a patch cord: the agent asks for a Rack Vision photo.
-- `netmedic fix "BGP between edge1 and isp1 is down"` investigates and fixes a described problem.
-- `netmedic eval --runs 2` reproduces the table above.
+`lab/chaos.sh list` shows every scenario; `lab/chaos.sh cable-unplug` triggers the Rack Vision
+flow; `netmedic watch --lan` serves the UI over HTTPS with a QR code for the phone.
+Full guide: [docs/setup.md](docs/setup.md).
 
-## Safety
+## Safety by design
 
-- The model never runs commands: every tool maps validated arguments to a fixed argv.
-- Changes only touch `/var/lib/netagent/` (the Nix-generated base config is read-only), through
-  typed actions with `configure check`, `configure timeout` and automatic rollback.
+- The model never writes commands: every tool maps validated arguments to a fixed argv.
+- Changes only touch `/var/lib/netagent/`; the Nix-generated base configuration is read-only.
+- BIRD changes go through `configure check` and `configure timeout`, so a crash mid-change
+  still reverts; every other action records how to undo itself.
 - Each plan step is verified on its own; a failed step is rolled back alone.
-- An incident that fails several times, or whose cause is outside our control (provider, cable),
-  is escalated to a human with the evidence, and its symptoms are not re-investigated in a loop.
+- What is outside our control — a provider, a cable — is escalated with the evidence and not
+  re-investigated in a loop.
 
-## Repository
+## Documentation
 
-| Path | |
+| | |
 |---|---|
-| `src/netmedic/` | watcher, agent, tools, executor, Rack Vision, web server |
-| `frontend/` | React + Spectrum 2 UI (built into `src/netmedic/web`) |
-| `runbooks/` | YAML runbooks given to the agent |
-| `lab/` | NixOS router VMs, topologies, chaos scenarios |
-| `reports/` | incident reports and eval results |
+| [Architecture](docs/architecture.md) | detection, agent, tools, executor, events, UI |
+| [Rack Vision](docs/rack-vision.md) | live ports, deep scan, SAM cross-check, photo requests, phone setup |
+| [Lab](docs/lab.md) | topologies, chaos scenarios, virtual patch cords |
+| [Evaluation](docs/evaluation.md) | method and full results |
+| [Setup](docs/setup.md) | install, configuration, commands, HTTP API |
+| [Sample incident report](docs/sample-report.md) | what netmedic writes after an incident |
+
+## Hackathon
+
+Built for the **Meta Global AI Developer Hackathon** (Cerebral Valley, Oct 27 – Nov 4, 2026),
+track *Build for Your World*. **Everything in this repository was written during the hackathon** —
+the first commit is from Oct 27, and the commit history shows the progression.
