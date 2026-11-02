@@ -18,6 +18,7 @@
   <img alt="Python" src="https://img.shields.io/badge/Python-3.12-3776AB">
   <img alt="React Spectrum" src="https://img.shields.io/badge/UI-React%20Spectrum%202-EB1000">
   <img alt="BIRD" src="https://img.shields.io/badge/lab-BIRD%203%20on%20NixOS-5277C3">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-lightgrey">
 </p>
 
 <p align="center">
@@ -136,3 +137,9 @@ Full guide: [docs/setup.md](docs/setup.md).
 Built for the **Meta Global AI Developer Hackathon** (Cerebral Valley, Oct 27 – Nov 4, 2026),
 track *Build for Your World*. **Everything in this repository was written during the hackathon** —
 the first commit is from Oct 27, and the commit history shows the progression.
+
+## License
+
+[MIT](LICENSE). The UI uses [React Spectrum](https://react-spectrum.adobe.com) (Apache 2.0) and the
+Source Sans 3 / Source Code Pro fonts (SIL OFL). Demo video music: “Floating Cities” by Kevin MacLeod
+(incompetech.com), CC BY 4.0.
