@@ -17,6 +17,7 @@ export type Tone = "ok" | "warn" | "bad" | "info" | "idle"
 
 export type VisionState = {
   camera: boolean | null  // null while starting
+  cameraError: string | null  // why the camera could not start
   live: boolean
   status: { tone: Tone; text: string }
   scanning: boolean
@@ -25,6 +26,16 @@ export type VisionState = {
   selected: number
   collapsed: boolean
   trace: TraceInfo | null
+}
+
+// The real reason, so the technician knows what to fix (a phone needs HTTPS, a laptop may have no camera).
+function cameraError(e: unknown) {
+  const name = (e as { name?: string })?.name
+  if (!window.isSecureContext || !navigator.mediaDevices) return "The camera needs HTTPS"
+  if (name === "NotAllowedError") return "Camera access was denied: allow it in the browser settings"
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "No camera on this device"
+  if (name === "NotReadableError") return "The camera is used by another app"
+  return "The camera could not start"
 }
 
 const COLOR = { empty: "#f59e0b", plugged: "#16a34a", trace: "#2563eb", device: "#2563eb" }
@@ -54,7 +65,7 @@ function frameBlob(source: HTMLVideoElement | HTMLImageElement | HTMLCanvasEleme
 
 export class VisionEngine {
   state: VisionState = {
-    camera: null, live: true, status: { tone: "idle", text: "Starting camera" }, scanning: false,
+    camera: null, cameraError: null, live: true, status: { tone: "idle", text: "Starting camera" }, scanning: false,
     frozen: false, scan: null, selected: -1, collapsed: false, trace: null,
   }
   private listeners = new Set<() => void>()
@@ -100,8 +111,8 @@ export class VisionEngine {
       this.set({ camera: true })
       this.status("ok", "Live")
       this.kick()
-    } catch {
-      this.set({ camera: false, live: false })
+    } catch (e) {
+      this.set({ camera: false, cameraError: cameraError(e), live: false })
       this.status("idle", "Photo mode")
     }
   }

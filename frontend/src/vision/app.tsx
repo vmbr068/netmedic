@@ -91,7 +91,7 @@ function Vision() {
           <IllustratedMessage>
             <CameraIllustration />
             <Heading>Camera unavailable</Heading>
-            <Content>HTTPS required</Content>
+            <Content>{s.cameraError ?? "The camera could not start"}. Upload a photo instead.</Content>
             <ButtonGroup><Button variant="accent" onPress={upload}><ImageAdd /><Text>Upload photo</Text></Button></ButtonGroup>
           </IllustratedMessage>
         </div>
@@ -241,6 +241,6 @@ function Results({ s, engine }: { s: VisionState; engine: VisionEngine }) {
 const noop = () => () => {}
 const initialState: VisionState = {
   camera: null, live: true, status: { tone: "idle", text: "Starting" }, scanning: false,
-  frozen: false, scan: null, selected: -1, collapsed: false, trace: null,
+  frozen: false, scan: null, selected: -1, collapsed: false, trace: null, cameraError: null,
 }
 const initial = () => initialState

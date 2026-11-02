@@ -168,8 +168,16 @@ function Item({ item }: { item: FeedItem }) {
         </InlineAlert>
       )
     case "step": {
-      const bold = item.icon === "committed" || item.icon === "rollback" || item.icon === "escalate"
-      return <Row icon={ICON[item.icon]} tone={item.tone} ts={item.ts}><p className={bold ? strong : style({ margin: 0 })}>{item.text}</p></Row>
+      // Milestones get a bold label; a long explanation after "label: " stays regular.
+      const milestone = item.icon === "committed" || item.icon === "rollback" || item.icon === "escalate"
+      const cut = item.text.indexOf(": ")
+      const [label, rest] = milestone && cut > 0 && cut < 40 ? [item.text.slice(0, cut), item.text.slice(cut + 2)] : [item.text, ""]
+      return (
+        <Row icon={ICON[item.icon]} tone={item.tone} ts={item.ts}>
+          <p className={milestone ? strong : style({ margin: 0 })}>{label}</p>
+          {rest && <p className={style({ margin: 0 })}>{rest}</p>}
+        </Row>
+      )
     }
     case "photo":
       return (

@@ -54,9 +54,9 @@ reversible path, and hands a human exactly what it cannot fix itself.
 | **5. Report** | Every incident ends with a root-cause report: evidence, actions, checks, rollbacks, escalation, cost. |
 
 <p align="center">
-  <img src="docs/rack-vision-request.png" alt="Photo request in the live incident" width="62%">
+  <img src="docs/rack-vision-request.png" alt="Photo request in the live incident" width="58%" align="middle">
   &nbsp;
-  <img src="docs/rack-vision-phone.png" alt="Rack Vision on the phone" width="28%">
+  <img src="docs/rack-vision-phone.png" alt="The same request on the technician's phone" width="38%" align="middle">
 </p>
 
 ## Built with Meta AI
