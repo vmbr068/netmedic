@@ -187,8 +187,14 @@ DIAGNOSTIC_TOOLS: list[Tool] = [
 ]
 
 
-def photo_tool(onsite: OnsiteBroker) -> Tool:
-    """Ask the on-site technician for a Rack Vision photo (offered only by `netmedic watch`)."""
+def photo_tool(onsite: OnsiteBroker, asked: list[str]) -> Tool:
+    """Ask the on-site technician for a Rack Vision photo (offered only by `netmedic watch`).
+    Every port photographed is appended to `asked`."""
+    async def run(a: dict[str, Any]) -> str:
+        interface = _name(a["interface"], "interface")
+        asked.append(f"{a['router']} {interface}")
+        return await onsite.request(a["router"], interface, str(a["reason"])[:200])
+
     return Tool(
         "request_rack_photo",
         "Ask the on-site technician to photograph the rack around a router port with Rack Vision, and wait "
@@ -199,7 +205,7 @@ def photo_tool(onsite: OnsiteBroker) -> Tool:
             reason={**_STR, "description": "Short evidence shown to the technician, e.g. 'to-core1 NO-CARRIER on both ends'"},
         ),
         build=lambda a: [],
-        run=lambda a: onsite.request(a["router"], _name(a["interface"], "interface"), str(a["reason"])[:200]),
+        run=run,
     )
 
 
@@ -208,8 +214,9 @@ class Toolbox:
         self.pool = pool
         self.tools = {t.name: t for t in (tools or DIAGNOSTIC_TOOLS)}
         self.onsite = onsite
+        self.photos: list[str] = []  # ports the technician was asked to photograph during this incident
         if onsite:
-            self.tools["request_rack_photo"] = photo_tool(onsite)
+            self.tools["request_rack_photo"] = photo_tool(onsite, self.photos)
 
     def schemas(self) -> list[dict[str, Any]]:
         return [t.schema() for t in self.tools.values()]

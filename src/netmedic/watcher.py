@@ -284,6 +284,8 @@ class Watcher:
             if healthy:
                 self._attempts.clear()
         self.symptoms = symptoms
+        if healthy:
+            self._ack_next = False  # what the last incident left behind is gone: a new failure is new
         await self.on_event(Event("state", self.snapshot()))
 
         if self.busy or time.monotonic() < self._settle_until:

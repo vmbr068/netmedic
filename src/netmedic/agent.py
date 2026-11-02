@@ -68,8 +68,9 @@ Runbooks:
 
 ONSITE_PROMPT = """
 On-site technician (request_rack_photo):
-- Use the photo findings as evidence. A cable you cannot plug back in yourself is a physical fix: put it in
-  `escalation` with what the photo showed (or that no photo came back), and keep fixing what you can.
+- Use the photo findings as evidence. A cable you cannot plug back in yourself is a physical fix: if the link
+  is still down, `escalation` must say which port to check and what the photo showed (or that no photo came
+  back). Never submit an empty plan with an empty escalation for a down link. Keep fixing what you can.
 """
 
 

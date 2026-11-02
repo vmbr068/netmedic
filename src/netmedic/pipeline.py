@@ -68,13 +68,17 @@ async def handle_incident(
     mode 'auto' applies low-risk steps on its own and asks `approve` for the rest;
     mode 'approval' always asks."""
     started = datetime.now()
-    agent = Agent(settings, inventory, Toolbox(pool, onsite=onsite), load_runbooks(settings.runbooks_dir), on_event=on_event, tier=tier)
+    toolbox = Toolbox(pool, onsite=onsite)
+    agent = Agent(settings, inventory, toolbox, load_runbooks(settings.runbooks_dir), on_event=on_event, tier=tier)
     try:
         diagnosis = await asyncio.wait_for(agent.investigate(incident), settings.incident_timeout)
     except Exception as e:
         reason = "timed out" if isinstance(e, asyncio.TimeoutError) else f"failed: {type(e).__name__}: {e}"
         await on_event(Event("escalate", {"text": f"investigation {reason} — escalating to a human"}))
         raise
+    if toolbox.photos and not diagnosis.plan and not diagnosis.escalation.strip():
+        # A layer-1 fault we cannot fix ourselves must reach a human even if the model forgot to say so.
+        diagnosis.escalation = f"Physical check needed on site: {', '.join(toolbox.photos)}. {diagnosis.root_cause}"
     result = IncidentResult(diagnosis)
     executor = Executor(pool, on_event=on_event)
 

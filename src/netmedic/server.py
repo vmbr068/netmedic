@@ -159,6 +159,7 @@ def create_app(
             # Ends when the server shuts down (`stopping`), or Ctrl+C would wait on every open browser.
             queue = hub.subscribe()
             stop = asyncio.ensure_future(stopping.wait()) if stopping else asyncio.get_running_loop().create_future()
+            get: asyncio.Future | None = None
             try:
                 while not stop.done():
                     get = asyncio.ensure_future(queue.get())
@@ -169,8 +170,10 @@ def create_app(
                         get.cancel()
                         if not stop.done():
                             yield ": keepalive\n\n"
-            finally:
+            finally:  # also when the browser goes away mid-wait
                 stop.cancel()
+                if get:
+                    get.cancel()
                 hub.unsubscribe(queue)
 
         return StreamingResponse(stream(), media_type="text/event-stream",
