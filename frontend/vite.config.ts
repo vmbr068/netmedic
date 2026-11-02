@@ -6,10 +6,21 @@ import { defineConfig } from "vite"
 
 // Built into the Python package, so `uv run netmedic` serves the UI without Node.
 // `npm run dev` proxies the API to a running `netmedic watch`.
+// Spectrum's <Fonts> preloads Adobe Clean from Adobe Fonts (licensed for Adobe products only); we use
+// Source Sans 3 instead (index.css), so that component is replaced by a no-op.
+const noAdobeFonts = {
+  name: "no-adobe-fonts",
+  enforce: "pre" as const,
+  resolveId: (id: string, importer?: string) =>
+    id === "./Fonts.mjs" && importer?.includes("@react-spectrum/s2") ? "\0no-adobe-fonts" : null,
+  load: (id: string) => (id === "\0no-adobe-fonts" ? "export function Fonts() { return null }" : null),
+}
+
 export default defineConfig({
   base: "./",  // relative assets: same build served at / and /vision
   plugins: [
     macros.vite(),  // first: compiles Spectrum 2 style() calls to static CSS
+    noAdobeFonts,
     { ...optimizeLocales.vite({ locales: ["en-US", "fr-FR"] }), enforce: "pre" },  // drop the other ~30 translations
     react(),
   ],

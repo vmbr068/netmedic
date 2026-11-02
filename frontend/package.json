@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/source-code-pro": "^5.3.1",
+    "@fontsource-variable/source-sans-3": "^5.3.1",
     "@react-spectrum/s2": "^1.8.2",
     "marked": "^18.1.2",
     "motion": "^14.7.1",

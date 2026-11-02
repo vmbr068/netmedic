@@ -1,5 +1,17 @@
 /* Everything else is Spectrum 2 (style macro). Only what macros can't reach lives here. */
 
+/* Fonts: Adobe Clean is licensed for Adobe products only. Spectrum's own recommendation for other
+   products is Source Sans (SIL OFL), bundled here so the UI also works offline. */
+@import "@fontsource-variable/source-sans-3";
+@import "@fontsource-variable/source-code-pro";
+@font-face {  /* Spectrum's code font family name, served locally */
+  font-family: "source-code-pro";
+  font-weight: 200 900;
+  font-display: swap;
+  src: url("../node_modules/@fontsource-variable/source-code-pro/files/source-code-pro-latin-wght-normal.woff2") format("woff2-variations");
+}
+:root { --s2-font-family-sans: "Source Sans 3 Variable"; }
+
 body { margin: 0; }
 
 /* Spectrum "large" scale (normally touch-only): the desktop "medium" scale reads tiny on HiDPI screens. */
@@ -13,7 +25,7 @@ body { margin: 0; }
 .report ul { padding-inline-start: 20px; margin: 8px 0; }
 .report strong { font-weight: 700; color: light-dark(rgb(19, 19, 19), rgb(242, 242, 242)); }
 .report code {
-  font-family: "Source Code Pro", ui-monospace, monospace; font-size: 0.85em; word-break: break-all;
+  font-family: "source-code-pro", ui-monospace, monospace; font-size: 0.85em; word-break: break-all;
   background: light-dark(rgb(233, 233, 233), rgb(44, 44, 44)); border-radius: 4px; padding: 1px 4px;
 }
 
