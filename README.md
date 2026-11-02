@@ -25,6 +25,7 @@
   <a href="#demo">Demo</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#results">Results</a> ·
+  <a href="#beyond-this-lab">Beyond this lab</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="docs/architecture.md">Architecture</a>
 </p>
@@ -96,6 +97,22 @@ The physical `cable-unplug` scenario is measured separately: photo requested 8�
 detection, escalated with the right port in under a minute, 4/4.
 
 Details and methodology: [docs/evaluation.md](docs/evaluation.md).
+
+## Beyond this lab
+
+netmedic is not a BGP tool. The agent is generic — **probes vs a baseline → investigation with
+validated read-only tools → typed actions with checks and rollback → a human for what it cannot fix**
+— and the network is just its first domain.
+
+| | Today (this repo) | Same loop, next |
+|---|---|---|
+| **Network** | BGP, OSPF, best paths, MTU, firewall rules, DNS, pulled cables — on BIRD / Linux | FRR, Cisco / Juniper / Arista over SSH or NETCONF, LLDP-based cabling checks |
+| **Kubernetes** | — | probes on readiness, restarts, error rates; `kubectl` read-only tools; actions such as `rollout undo` or scale, verified by health checks |
+| **DevOps / cloud** | — | failing deploys, certificates, DNS records, load balancers, with the same plan → verify → rollback |
+| **Physical world** | Rack Vision photo requests for cables and ports | power, LEDs, transceivers, labels — anything a technician can photograph |
+
+Adding a domain means writing its probes, tools and typed actions (plus a view in the UI); the agent
+loop, the safety pipeline, approvals, photo requests and reports are reused as they are.
 
 ## Quick start
 
